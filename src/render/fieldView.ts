@@ -8,6 +8,8 @@ const GRASS = 0x7fa650;
 const GRASS_EDGE = 0x5c7d38;
 const FENCE = 0x6b4a2f;
 const GATE_MARK = 0xe8d9a0;
+const ROCK = 0x8a8577;
+const ROCK_EDGE = 0x625e53;
 
 export class FieldView {
   readonly container: Container;
@@ -22,6 +24,15 @@ export class FieldView {
     for (let i = 0; i < fp.length; i++) pts.push(fp[i]);
     field.poly(pts).fill({ color: GRASS }).stroke({ width: 6, color: GRASS_EDGE });
     c.addChild(field);
+
+    // Obstacles (block sheep and dog).
+    for (const poly of level.obstacles) {
+      const g = new Graphics();
+      const op: number[] = [];
+      for (let i = 0; i < poly.length; i++) op.push(poly[i]);
+      g.poly(op).fill({ color: ROCK }).stroke({ width: 4, color: ROCK_EDGE });
+      c.addChild(g);
+    }
 
     // Pen fence: draw each wall segment that belongs to the pen (skip field walls),
     // i.e. reconstruct from penPoly minus the gate edge.

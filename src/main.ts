@@ -2,7 +2,7 @@
 // Wiring only — no simulation logic.
 
 import { createGameState } from "./state/gameState";
-import { level1 } from "../data/levels/level1";
+import { level2 } from "../data/levels/level2";
 import { Renderer } from "./render/renderer";
 import { attachInput } from "./input/input";
 import { startLoop } from "./loop";
@@ -11,7 +11,7 @@ async function boot(): Promise<void> {
   const mount = document.getElementById("app");
   if (!mount) throw new Error("#app mount not found");
 
-  const state = createGameState(level1);
+  const state = createGameState(level2);
 
   const renderer = new Renderer();
   await renderer.init(state, mount);

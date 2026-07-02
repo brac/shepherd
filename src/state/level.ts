@@ -16,6 +16,7 @@ export interface LevelDef {
   field: number[]; // flat polygon [x0,y0,...], walkable = interior
   pen: number[]; // flat polygon, walkable = exterior (fence seen from the field)
   gateEdge: number; // index of the pen edge that is the open gate
+  obstacles?: number[][]; // flat polygons blocking sheep AND dog (walkable = exterior)
   spawn: { x: number; y: number; w: number; h: number };
   dogStart: { x: number; y: number };
   penBack: { x: number; y: number }; // far interior of the pen (circulate-to-back target)
@@ -37,7 +38,8 @@ export interface Level {
   sheepCount: number;
   fieldPoly: Float32Array;
   penPoly: Float32Array;
-  walls: Float32Array; // packed [ax,ay,bx,by,nx,ny]* — field + pen minus gate
+  obstacles: Float32Array[]; // obstacle polygons (for rendering; collision uses `walls`)
+  walls: Float32Array; // packed [ax,ay,bx,by,nx,ny]* — field + pen (minus gate) + obstacles
   wallCount: number;
   gate: Gate;
   gateWall: Wall; // the gate segment, collides ONLY penned sheep (one-way)
@@ -65,10 +67,20 @@ export function buildLevel(def: LevelDef): Level {
   const fieldPoly = new Float32Array(def.field);
   const penPoly = new Float32Array(def.pen);
 
-  // Field: bodies live inside. Pen: bodies (approaching) live outside; skip the gate edge.
+  // Field: bodies live inside. Pen: bodies (approaching) live outside; skip the gate
+  // edge. Obstacles: bodies live outside (walkable = exterior), same as the pen fence.
   const fieldWalls = polygonToWalls(fieldPoly, true);
   const penWalls = polygonToWalls(penPoly, false, def.gateEdge);
-  const walls = packWalls(fieldWalls.concat(penWalls));
+  const obstacles: Float32Array[] = [];
+  let obstacleWalls: Wall[] = [];
+  if (def.obstacles) {
+    for (const raw of def.obstacles) {
+      const poly = new Float32Array(raw);
+      obstacles.push(poly);
+      obstacleWalls = obstacleWalls.concat(polygonToWalls(poly, false));
+    }
+  }
+  const walls = packWalls(fieldWalls.concat(penWalls).concat(obstacleWalls));
 
   // Gate segment = the skipped pen edge.
   const n = penPoly.length / 2;
@@ -99,6 +111,7 @@ export function buildLevel(def: LevelDef): Level {
     sheepCount: def.sheepCount,
     fieldPoly,
     penPoly,
+    obstacles,
     walls,
     wallCount: walls.length / 6,
     gate,

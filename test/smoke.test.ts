@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { createGameState, type GameState, FLAG_PENNED } from "../src/state/gameState";
 import { level1 } from "../data/levels/level1";
+import { level2 } from "../data/levels/level2";
 import { stepSim } from "../src/sim/step";
+import { pointInPolygon } from "../src/sim/geometry";
 import { DT, SHEEP_COLLIDE_DIST } from "../data/tuning";
 
 function allFinite(state: GameState): boolean {
@@ -144,6 +146,37 @@ describe("smoke / invariants", () => {
     }
     // A tiny number of transient contacts is fine; a pile-up is not.
     expect(deepPairs).toBeLessThan(10);
+  });
+
+  it("obstacle blocks sheep — none penetrate the boulder when pushed into it", () => {
+    const state = createGameState(level2);
+    const boulder = state.level.obstacles[0];
+    expect(boulder).toBeDefined();
+
+    // Line up the first 60 sheep just off the boulder's left face, driving right
+    // straight into it; park the dog behind them to keep the pressure on.
+    for (let i = 0; i < 60; i++) {
+      const x = 870;
+      const y = 470 + (i % 60) * 4.5;
+      state.sheep.posX[i] = x;
+      state.sheep.posY[i] = y;
+      state.sheep.prevX[i] = x;
+      state.sheep.prevY[i] = y;
+      state.sheep.velX[i] = 140;
+      state.sheep.velY[i] = 0;
+    }
+    for (let t = 0; t < 500; t++) {
+      state.input.mouseWorldX = 700;
+      state.input.mouseWorldY = 600;
+      stepSim(state, DT);
+    }
+
+    // No sheep may end up inside the obstacle polygon.
+    let inside = 0;
+    for (let i = 0; i < state.sheep.count; i++) {
+      if (pointInPolygon(state.sheep.posX[i], state.sheep.posY[i], boulder)) inside++;
+    }
+    expect(inside).toBe(0);
   });
 
   it("holds a workable frame budget (500 hard, 1000 stretch)", () => {
