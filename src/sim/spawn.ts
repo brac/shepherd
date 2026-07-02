@@ -3,7 +3,13 @@
 
 import type { GameState } from "../state/gameState";
 import { nextFloat, nextRange } from "./rng";
-import { GRAZE_MIN_DWELL, GRAZE_MAX_DWELL } from "../../data/tuning";
+import {
+  BODY_SIZE_MAX,
+  BODY_SIZE_MIN,
+  GRAZE_MAX_DWELL,
+  GRAZE_MIN_DWELL,
+  SHEEP_COLLIDE_DIST,
+} from "../../data/tuning";
 
 export function spawnSheep(state: GameState): void {
   const s = state.sheep;
@@ -27,6 +33,9 @@ export function spawnSheep(state: GameState): void {
     s.grazeTimer[i] = nextRange(rng, GRAZE_MIN_DWELL, GRAZE_MAX_DWELL);
     s.grazeDX[i] = 0;
     s.grazeDY[i] = 0;
+    // Half-size so two average sheep sit ~SHEEP_COLLIDE_DIST apart; the seeded spread
+    // means the de-overlap can't settle into a perfect crystal.
+    s.bodyR[i] = (SHEEP_COLLIDE_DIST * 0.5) * nextRange(rng, BODY_SIZE_MIN, BODY_SIZE_MAX);
     s.flags[i] = 0;
   }
 }

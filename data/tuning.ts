@@ -34,7 +34,30 @@ export const W_COHESION = 0.9;
 export const W_FEAR = 2.5;
 export const W_FUNNEL = 1.2;
 export const W_PEN_BACK = 0.4;
-export const FLEE_COHESION_DAMP = 0.25; // align/cohesion multiplier while fleeing
+export const FLEE_COHESION_DAMP = 0.35; // align/cohesion multiplier while fleeing
+
+// ---- Sheep-like realism (see docs: Strömbom 2014, Ballerini 2008, Couzin 2002) ----
+// Topological "rejoin": a stray with too few metric neighbours steers toward the
+// centre of mass of its K nearest flockmates regardless of distance, so lone sheep
+// sprint back instead of stranding. Metric cohesion still lets *groups* be sheared.
+export const TOPO_K = 6; // nearest neighbours a stray aims for (Ballerini's ~6-7)
+export const REJOIN_MIN_NEIGHBORS = 3; // fewer awareness neighbours than this => stray
+export const W_REJOIN = 2.4; // rejoin steer weight when fully isolated
+
+// Angular noise breaks the perfect-lattice / disc crystallisation (Strömbom's e term).
+export const W_NOISE = 0.12; // random steer magnitude, relative to the unit boid terms
+
+// Vision / blind rear: neighbours behind a moving sheep count less, so the flock
+// elongates along motion instead of settling into an isotropic disc.
+export const REAR_WEIGHT = 0.4; // weight of a neighbour behind you vs one in front
+
+// Selfish herd (Hamilton 1971): panic tightens cohesion, so a pressured flock bunches
+// and rounds up rather than shearing into singletons.
+export const PANIC_COHESION_GAIN = 1.6; // extra cohesion multiplier at panic = 1
+
+// Per-sheep body-size variation roughens the de-overlap lattice (no perfect packing).
+export const BODY_SIZE_MIN = 0.82;
+export const BODY_SIZE_MAX = 1.18;
 
 // ---- Grazing ----
 export const GRAZE_MIN_DWELL = 0.6; // seconds between wander decisions (min)

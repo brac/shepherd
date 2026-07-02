@@ -35,6 +35,7 @@ export interface SheepPool {
   grazeDY: Float32Array;
   corrX: Float32Array; // scratch: per-step positional de-overlap correction
   corrY: Float32Array;
+  bodyR: Float32Array; // per-sheep de-overlap half-size (seeded variation breaks the lattice)
   flags: Uint8Array;
 }
 
@@ -128,6 +129,7 @@ function createSheepPool(count: number): SheepPool {
     grazeDY: new Float32Array(count),
     corrX: new Float32Array(count),
     corrY: new Float32Array(count),
+    bodyR: new Float32Array(count),
     flags: new Uint8Array(count),
   };
 }

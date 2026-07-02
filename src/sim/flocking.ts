@@ -15,7 +15,7 @@ import {
 } from "../state/gameState";
 import { colOf, rowOf } from "./spatialHash";
 import { collideWalls, collideOut } from "./collision";
-import { nextRange } from "./rng";
+import { nextRange, nextSigned } from "./rng";
 import {
   AWARENESS_RADIUS,
   BARK_RADIUS,
@@ -30,19 +30,25 @@ import {
   GRAZE_TURN,
   HEADING_EASE,
   HEADING_MIN_SPEED,
+  PANIC_COHESION_GAIN,
   PENNED_SPEED,
   PEN_BACK_STRENGTH,
   PRONE_SOFTWALL_FORCE,
   PRONE_SOFTWALL_RADIUS,
+  REAR_WEIGHT,
+  REJOIN_MIN_NEIGHBORS,
   SEPARATION_RADIUS,
   SHEEP_FLEE_SPEED,
   SHEEP_GRAZE_SPEED,
   SHEEP_MAX_FORCE,
   SHEEP_RADIUS,
   SHEEP_WALK_SPEED,
+  TOPO_K,
   W_ALIGNMENT,
   W_COHESION,
   W_FEAR,
+  W_NOISE,
+  W_REJOIN,
   W_SEPARATION,
 } from "../../data/tuning";
 
@@ -52,6 +58,98 @@ import { W_FUNNEL as _WF, W_PEN_BACK as _WPB } from "../../data/tuning";
 const GRAZE_PANIC_EPS = 0.05; // panic below this counts as calm
 const NEIGHBOR_PANIC_EPS = 0.2; // a neighbor above this suppresses grazing
 const TWO_PI = Math.PI * 2;
+
+// Scratch for the topological k-nearest search (reused; single-threaded => safe).
+const kIdx = new Int32Array(TOPO_K);
+const kD2 = new Float32Array(TOPO_K);
+const rejoinOut = { x: 0, y: 0, found: false };
+
+/**
+ * Fill rejoinOut with the centre of mass of sheep i's TOPO_K nearest neighbours,
+ * searching outward ring by ring over the grid (so it finds the flock even when it
+ * is beyond the 3x3 metric block). Reads snapshot (prev) positions. Zero allocation.
+ */
+function findKNearestCentroid(state: GameState, i: number, px: number, py: number): void {
+  const grid = state.grid;
+  const s = state.sheep;
+  const cols = grid.cols;
+  const rows = grid.rows;
+  const ci = colOf(grid, px);
+  const ri = rowOf(grid, py);
+  let cnt = 0;
+  let worstIdx = -1;
+  let worstD2 = -1;
+  const maxRing = cols > rows ? cols : rows;
+
+  for (let ring = 0; ring <= maxRing; ring++) {
+    const rLo = ri - ring;
+    const rHi = ri + ring;
+    const cLo = ci - ring;
+    const cHi = ci + ring;
+    for (let rr = rLo; rr <= rHi; rr++) {
+      if (rr < 0 || rr >= rows) continue;
+      const onRowEdge = rr === rLo || rr === rHi;
+      const rowBase = rr * cols;
+      for (let cc = cLo; cc <= cHi; cc++) {
+        if (cc < 0 || cc >= cols) continue;
+        // Only the border cells of this ring (interior was covered by smaller rings).
+        if (!onRowEdge && cc !== cLo && cc !== cHi) continue;
+        let j = grid.heads[rowBase + cc];
+        while (j !== -1) {
+          if (j !== i) {
+            const dx = s.prevX[j] - px;
+            const dy = s.prevY[j] - py;
+            const d2 = dx * dx + dy * dy;
+            if (cnt < TOPO_K) {
+              kIdx[cnt] = j;
+              kD2[cnt] = d2;
+              cnt++;
+              if (cnt === TOPO_K) {
+                worstD2 = -1;
+                for (let m = 0; m < TOPO_K; m++) {
+                  if (kD2[m] > worstD2) {
+                    worstD2 = kD2[m];
+                    worstIdx = m;
+                  }
+                }
+              }
+            } else if (d2 < worstD2) {
+              kIdx[worstIdx] = j;
+              kD2[worstIdx] = d2;
+              worstD2 = -1;
+              for (let m = 0; m < TOPO_K; m++) {
+                if (kD2[m] > worstD2) {
+                  worstD2 = kD2[m];
+                  worstIdx = m;
+                }
+              }
+            }
+          }
+          j = grid.next[j];
+        }
+      }
+    }
+    // Once we have K, stop when no closer neighbour can exist in further rings.
+    if (cnt >= TOPO_K) {
+      const bound = ring * grid.cellSize;
+      if (bound * bound > worstD2) break;
+    }
+  }
+
+  if (cnt === 0) {
+    rejoinOut.found = false;
+    return;
+  }
+  let sx = 0;
+  let sy = 0;
+  for (let m = 0; m < cnt; m++) {
+    sx += s.prevX[kIdx[m]];
+    sy += s.prevY[kIdx[m]];
+  }
+  rejoinOut.x = sx / cnt;
+  rejoinOut.y = sy / cnt;
+  rejoinOut.found = true;
+}
 
 export function updateFlocking(state: GameState, dt: number): void {
   const s = state.sheep;
@@ -93,9 +191,24 @@ export function updateFlocking(state: GameState, dt: number): void {
     const r0 = r > 0 ? r - 1 : 0;
     const r1 = r < rows - 1 ? r + 1 : rows - 1;
 
-    // Neighbor accumulators.
+    // Forward direction (from velocity) for the vision / blind-rear weighting: a
+    // neighbour behind a moving sheep counts less, so the flock elongates along motion
+    // instead of settling into an isotropic disc.
+    let fwdX = 0;
+    let fwdY = 0;
+    let hasFwd = false;
+    const spd0 = Math.sqrt(vx * vx + vy * vy);
+    if (spd0 > HEADING_MIN_SPEED) {
+      fwdX = vx / spd0;
+      fwdY = vy / spd0;
+      hasFwd = true;
+    }
+
+    // Neighbor accumulators. cohWsum is the vision-weighted count for the centroid;
+    // cohN is the raw count used to decide whether this sheep is a stray.
     let cohX = 0;
     let cohY = 0;
+    let cohWsum = 0;
     let cohN = 0;
     let alignX = 0;
     let alignY = 0;
@@ -113,10 +226,13 @@ export function updateFlocking(state: GameState, dt: number): void {
             const dy = s.prevY[j] - py;
             const d2 = dx * dx + dy * dy;
             if (d2 < aware2) {
-              cohX += s.prevX[j];
-              cohY += s.prevY[j];
-              alignX += s.velX[j];
-              alignY += s.velY[j];
+              let vw = 1;
+              if (hasFwd && fwdX * dx + fwdY * dy < 0) vw = REAR_WEIGHT; // behind = blind zone
+              cohX += s.prevX[j] * vw;
+              cohY += s.prevY[j] * vw;
+              cohWsum += vw;
+              alignX += s.velX[j] * vw;
+              alignY += s.velY[j] * vw;
               cohN++;
               if (d2 < sep2 && d2 > 1e-6) {
                 const d = Math.sqrt(d2);
@@ -136,9 +252,9 @@ export function updateFlocking(state: GameState, dt: number): void {
     if (flags & FLAG_PENNED) {
       let desX = 0;
       let desY = 0;
-      if (cohN > 0) {
-        const dxc = cohX / cohN - px;
-        const dyc = cohY / cohN - py;
+      if (cohWsum > 0) {
+        const dxc = cohX / cohWsum - px;
+        const dyc = cohY / cohWsum - py;
         const l = Math.sqrt(dxc * dxc + dyc * dyc);
         if (l > 1e-4) {
           desX += W_COHESION * (dxc / l);
@@ -172,11 +288,15 @@ export function updateFlocking(state: GameState, dt: number): void {
     let desY = 0;
 
     // ---- Cohesion / alignment (local only) ----
-    if (cohN > 0) {
-      const cw = fleeing ? W_COHESION * FLEE_COHESION_DAMP : W_COHESION;
+    // Cohesion tightens with panic (selfish herd: a pressured flock bunches and rounds
+    // up rather than shearing into singletons).
+    if (cohWsum > 0) {
+      const panicI = s.panic[i];
+      const cohBase = fleeing ? W_COHESION * FLEE_COHESION_DAMP : W_COHESION;
+      const cw = cohBase * (1 + PANIC_COHESION_GAIN * panicI);
       const aw = fleeing ? W_ALIGNMENT * FLEE_COHESION_DAMP : W_ALIGNMENT;
-      const dxc = cohX / cohN - px;
-      const dyc = cohY / cohN - py;
+      const dxc = cohX / cohWsum - px;
+      const dyc = cohY / cohWsum - py;
       const l = Math.sqrt(dxc * dxc + dyc * dyc);
       if (l > 1e-4) {
         desX += cw * (dxc / l);
@@ -186,6 +306,26 @@ export function updateFlocking(state: GameState, dt: number): void {
       if (al > 1e-4) {
         desX += aw * (alignX / al);
         desY += aw * (alignY / al);
+      }
+    }
+
+    // ---- Topological rejoin (stray sheep sprint back to the flock) ----
+    // A sheep with too few metric neighbours steers toward the centre of mass of its
+    // K nearest flockmates (found via an outward ring search, so distance is no object).
+    // The pull scales with isolation, so a fully lone sheep is pulled hardest while a
+    // sheared-off *group* (still has internal neighbours) is left free to drift.
+    if (cohN < REJOIN_MIN_NEIGHBORS) {
+      findKNearestCentroid(state, i, px, py);
+      if (rejoinOut.found) {
+        const rdx = rejoinOut.x - px;
+        const rdy = rejoinOut.y - py;
+        const rl = Math.sqrt(rdx * rdx + rdy * rdy);
+        if (rl > 1e-3) {
+          const iso = (REJOIN_MIN_NEIGHBORS - cohN) / REJOIN_MIN_NEIGHBORS; // 1 when alone
+          const w = W_REJOIN * iso;
+          desX += (rdx / rl) * w;
+          desY += (rdy / rl) * w;
+        }
       }
     }
 
@@ -224,9 +364,16 @@ export function updateFlocking(state: GameState, dt: number): void {
       desY += (fdy / fd) * strength;
     }
 
-    // ---- Grazing (calm, dog far, no panicking neighbor) ----
+    // ---- Grazing (calm, dog far, no panicking neighbor, and NOT a stray) ----
+    // A stranded sheep is anxious, not content — it hurries back at walk speed rather
+    // than grazing slowly, so the rejoin pull isn't throttled to graze speed.
     let maxSpeed = fleeing ? SHEEP_FLEE_SPEED : SHEEP_WALK_SPEED;
-    const calm = !fleeing && s.panic[i] < GRAZE_PANIC_EPS && dogD2 > aware2 && !sawPanicNeighbor;
+    const calm =
+      !fleeing &&
+      s.panic[i] < GRAZE_PANIC_EPS &&
+      dogD2 > aware2 &&
+      !sawPanicNeighbor &&
+      cohN >= REJOIN_MIN_NEIGHBORS;
     if (calm) {
       s.grazeTimer[i] -= dt;
       if (s.grazeTimer[i] <= 0) {
@@ -239,6 +386,10 @@ export function updateFlocking(state: GameState, dt: number): void {
       desY += s.grazeDY[i] * 0.5;
       maxSpeed = SHEEP_GRAZE_SPEED;
     }
+
+    // ---- Angular noise (per-sheep individuality; breaks the perfect-lattice/disc) ----
+    desX += nextSigned(rng, W_NOISE);
+    desY += nextSigned(rng, W_NOISE);
 
     integrate(s, i, px, py, vx, vy, desX, desY, maxSpeed, dt, level, false);
   }

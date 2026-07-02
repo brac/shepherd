@@ -39,6 +39,7 @@ All in `data/tuning.ts`. Current values reflect a first feel pass:
 - Panic: decay 0.9/s (forgiving), propagation pull 4.0/s, base inject 4.5 (head-on crosses the 0.6 flight threshold; flanking stays gentle via the angle floor). Bark cooldown 0.8s.
 - Hard body distance `SHEEP_COLLIDE_DIST` 11, `OVERLAP_PASSES` 2.
 - Penned sheep move at `PENNED_SPEED` 40 (calm shuffle) with a gentle `PEN_BACK_STRENGTH` 0.3. Heading eases toward velocity (`HEADING_EASE`, `HEADING_MIN_SPEED`) so a jittering sheep can't spin.
+- **Sheep-like realism layer** (see DESIGN_BIBLE §1 "Sheep-like realism", refs Strömbom 2014 / Ballerini 2008 / Couzin 2002 / Hamilton 1971): `TOPO_K`, `REJOIN_MIN_NEIGHBORS`, `W_REJOIN` (topological rejoin — strays sprint back, group shearing preserved); `REAR_WEIGHT` (blind-rear elongation); `W_NOISE` (anti-crystallisation); `PANIC_COHESION_GAIN` (selfish-herd bunching); `BODY_SIZE_MIN/MAX` (de-overlap lattice break). These are the main "make it feel like sheep" dials to iterate on next.
 
 **Pen enclosure:** penned sheep collide against a *separate* wall set (`level.pennedWalls`) — the full pen boundary with inward normals (gate included) — so they can never be pulled out, even by a flock cohering just outside the fence. Unpenned sheep + the dog use `level.walls` (fence blocks from outside, gate open). Built in `src/state/level.ts`.
 

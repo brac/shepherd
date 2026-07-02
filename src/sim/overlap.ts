@@ -12,7 +12,7 @@
 import { FLAG_PENNED, type GameState } from "../state/gameState";
 import { colOf, rowOf } from "./spatialHash";
 import { collideWalls, collideOut } from "./collision";
-import { OVERLAP_PASSES, SHEEP_COLLIDE_DIST, SHEEP_RADIUS } from "../../data/tuning";
+import { OVERLAP_PASSES, SHEEP_RADIUS } from "../../data/tuning";
 
 export function resolveOverlap(state: GameState): void {
   const s = state.sheep;
@@ -23,8 +23,7 @@ export function resolveOverlap(state: GameState): void {
   const next = grid.next;
   const corrX = s.corrX;
   const corrY = s.corrY;
-  const minDist = SHEEP_COLLIDE_DIST;
-  const min2 = minDist * minDist;
+  const bodyR = s.bodyR;
 
   for (let pass = 0; pass < OVERLAP_PASSES; pass++) {
     corrX.fill(0);
@@ -50,7 +49,8 @@ export function resolveOverlap(state: GameState): void {
               const dx = s.posX[j] - px;
               const dy = s.posY[j] - py;
               const d2 = dx * dx + dy * dy;
-              if (d2 < min2) {
+              const minDist = bodyR[i] + bodyR[j]; // per-sheep sizes -> no perfect lattice
+              if (d2 < minDist * minDist) {
                 let ux: number;
                 let uy: number;
                 let overlap: number;

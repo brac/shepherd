@@ -23,7 +23,17 @@ Cohesion only considers neighbors **within the awareness radius**. There is no g
 
 ### Grazing
 
-When a sheep's panic is at/near 0 and no neighbor is panicking and the dog is outside its awareness radius, it grazes: very slow wander (seeded PRNG), heading drifts, occasionally near-stationary. There is no separate "settle" state — grazing is simply the low-panic behavior. Panic is the single scalar that governs everything.
+When a sheep's panic is at/near 0 and no neighbor is panicking and the dog is outside its awareness radius **and it has flockmates nearby**, it grazes: very slow wander (seeded PRNG), heading drifts, occasionally near-stationary. There is no separate "settle" state — grazing is simply the low-panic behavior. Panic is the single scalar that governs everything. (A *stranded* sheep does not graze contentedly — it hurries back; see below.)
+
+### Sheep-like realism (beyond plain boids)
+
+Plain Reynolds boids have two unnatural failure modes: they fragment into lone singletons, and dense groups crystallise into a perfect hexagonal disc. A thin realism layer — each term grounded in the animal-behaviour literature — fixes both **without** weakening the local-cohesion shearing that the design depends on. All are data-driven in `data/tuning.ts` and implemented in `src/sim/flocking.ts` / `overlap.ts`.
+
+- **Topological rejoin** (Ballerini et al. 2008 — starlings track ~6–7 nearest neighbours regardless of distance; Strömbom 2014 — sheep steer to the local centre of mass of their *n* nearest). A sheep with too few metric neighbours (a *stray*) steers toward the centroid of its `TOPO_K` nearest flockmates, found by an outward grid search, so a lone sheep sprints back instead of stranding. Crucially the pull scales with isolation and only bites for near-lone individuals — a sheared-off *group* still has internal neighbours and is left free to drift, so **group shearing is preserved**.
+- **Vision / blind rear** (front-weighting): neighbours behind a moving sheep count less (`REAR_WEIGHT`), so the flock elongates along motion instead of settling into an isotropic disc.
+- **Angular noise** (Strömbom's `e` term, `W_NOISE`): per-sheep individuality that breaks the perfect lattice.
+- **Selfish herd** (Hamilton 1971, `PANIC_COHESION_GAIN`): panic tightens cohesion, so a pressured flock bunches and rounds up rather than shearing into singletons.
+- **Per-sheep body size** (`BODY_SIZE_MIN/MAX`): seeded variation in the de-overlap distance so packed sheep can't settle into a perfect crystal.
 
 ---
 

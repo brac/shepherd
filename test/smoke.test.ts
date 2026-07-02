@@ -96,30 +96,85 @@ describe("smoke / invariants", () => {
     }
   });
 
-  it("a sheep nudged through the gate becomes penned and cannot leak back out", () => {
+  it("a clump nudged through the gate pens and cannot leak back out", () => {
     const state = createGameState(level1);
-    // One sheep just outside the gate mouth, aimed inward; ignore the rest.
-    state.sheep.posX[0] = 1490;
-    state.sheep.posY[0] = 640;
-    state.sheep.prevX[0] = 1490;
-    state.sheep.prevY[0] = 640;
-    state.sheep.velX[0] = 60;
-    state.sheep.velY[0] = 0;
-    // Park the dog behind it to keep light pressure toward the gate.
-    for (let t = 0; t < 600; t++) {
-      state.input.mouseWorldX = 1400;
+    // A tight clump of ~40 sheep at the gate mouth (they have each other as neighbours,
+    // so the topological rejoin doesn't pull them off). The rest are parked far away as
+    // their own clump. Dog just behind, pressing the clump through the gate.
+    for (let i = 0; i < state.sheep.count; i++) {
+      let x: number;
+      let y: number;
+      if (i < 40) {
+        x = 1475 + (i % 8) * 3;
+        y = 620 + ((i / 8) | 0) * 6;
+      } else {
+        x = 200 + (i % 20) * 8;
+        y = 980 + (((i - 40) / 20) | 0) * 8;
+      }
+      state.sheep.posX[i] = x;
+      state.sheep.posY[i] = y;
+      state.sheep.prevX[i] = x;
+      state.sheep.prevY[i] = y;
+    }
+    for (let t = 0; t < 900; t++) {
+      state.input.mouseWorldX = 1420;
       state.input.mouseWorldY = 640;
       stepSim(state, DT);
-      if (state.sheep.flags[0] & FLAG_PENNED) break;
     }
-    expect(state.sheep.flags[0] & FLAG_PENNED).toBeTruthy();
-    // Once penned it stays inside the pen polygon (no leakage).
-    for (let t = 0; t < 600; t++) {
-      state.input.mouseWorldX = 1400;
-      state.input.mouseWorldY = 640;
+
+    // Some of the clump made it in...
+    let penned = 0;
+    for (let i = 0; i < 40; i++) if (state.sheep.flags[i] & FLAG_PENNED) penned++;
+    expect(penned).toBeGreaterThan(0);
+    // ...and every penned sheep is still inside the pen (no leakage).
+    for (let i = 0; i < 40; i++) {
+      if (state.sheep.flags[i] & FLAG_PENNED) {
+        expect(state.sheep.posX[i]).toBeGreaterThan(1500);
+      }
+    }
+  });
+
+  it("a stray sheep rejoins the flock instead of stranding (topological rejoin)", () => {
+    const state = createGameState(level1);
+    // Tight flock clump; sheep 0 stranded far away, well beyond awareness radius.
+    for (let i = 1; i < state.sheep.count; i++) {
+      const x = 700 + ((i % 15) - 7) * 6;
+      const y = 600 + (((i / 15) | 0) % 15 - 7) * 6;
+      state.sheep.posX[i] = x;
+      state.sheep.posY[i] = y;
+      state.sheep.prevX[i] = x;
+      state.sheep.prevY[i] = y;
+    }
+    state.sheep.posX[0] = 700;
+    state.sheep.posY[0] = 150; // ~450px north of the flock, alone
+    state.sheep.prevX[0] = 700;
+    state.sheep.prevY[0] = 150;
+
+    const flockCentroid = (): { x: number; y: number } => {
+      let sx = 0;
+      let sy = 0;
+      for (let i = 1; i < state.sheep.count; i++) {
+        sx += state.sheep.posX[i];
+        sy += state.sheep.posY[i];
+      }
+      const n = state.sheep.count - 1;
+      return { x: sx / n, y: sy / n };
+    };
+    const c0 = flockCentroid();
+    const dist0 = Math.hypot(state.sheep.posX[0] - c0.x, state.sheep.posY[0] - c0.y);
+
+    for (let t = 0; t < 700; t++) {
+      state.dog.x = -100000; // no dog influence
+      state.dog.y = -100000;
+      state.input.mouseWorldX = -100000;
+      state.input.mouseWorldY = -100000;
       stepSim(state, DT);
     }
-    expect(state.sheep.posX[0]).toBeGreaterThan(1500);
+
+    const c1 = flockCentroid();
+    const dist1 = Math.hypot(state.sheep.posX[0] - c1.x, state.sheep.posY[0] - c1.y);
+    // The stray closed most of the gap back to the flock rather than drifting off.
+    expect(dist1).toBeLessThan(dist0 - 150);
   });
 
   it("sheep bodies do not deeply overlap once settled", () => {
