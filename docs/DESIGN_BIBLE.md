@@ -15,6 +15,8 @@ Each sheep is an independent boid. Every sim step, for each sheep, gather neighb
 
 Weighted sum, clamped to a max steering force, integrated into velocity, velocity clamped to a max sheep speed, integrated into position. Heading follows velocity (used for oval orientation and alignment).
 
+**Hard de-overlap (implemented).** Boid separation is a soft steer and cannot stop bodies interpenetrating at high density. After the move pass, a positional de-overlap pass pushes any two sheep closer than a body distance apart (a couple of relaxation iterations over the same spatial hash, allocation-free), then re-clamps against fences. This is what makes sheep *bump* rather than stack. See `src/sim/overlap.ts`.
+
 ### Cohesion is local — this is the whole splitting mechanism
 
 Cohesion only considers neighbors **within the awareness radius**. There is no global flock. When the dog shears a group and two clumps drift beyond each other's awareness radius, they stop feeling each other and become two independent blobs, each cohering internally. When two blobs wander back into mutual awareness, cohesion pulls them together again. Splitting and regrouping are free emergent consequences of local-only cohesion. **Do not model "the flock" as an object. Do not add split/merge logic.** The awareness radius is the single most important tunable for how easily the flock shears and how far a stray can drift before it's stranded.
@@ -45,7 +47,9 @@ Panic is clamped to 1.
 
 ### Propagation
 
-Each step, a panicking sheep passes a *fraction* of its panic to neighbors within awareness, scaled by proximity — closer neighbors receive more. A sheep at panic 0.9 injects roughly half into close neighbors, who inject a fraction of *that* into theirs, dying out over distance. This is how a scatter cascades or fizzles: if many neighbors are already near the flight threshold, propagation tips them over and the whole blob bolts; if few are, it fizzles. Propagation is additive then clamped.
+Each step, panic spreads between neighbors within awareness, scaled by proximity — closer neighbors matter more. A sheep at panic 0.9 drags nearby calm sheep upward; those in turn drag *their* neighbors, dying out over distance. This is how a scatter cascades or fizzles: a genuinely terrified sheep pulls its neighbors over the flight threshold and the blob bolts; a lone spike among calm sheep fizzles.
+
+**Implementation note — diffusion with loss, not additive sum.** The literal "additive then clamped" model caused a *permanent scatter* at 500 densely-packed sheep: many mutually-panicking neighbors kept topping each other up faster than decay could remove it, so the flock saturated at panic = 1 forever — exactly the runaway this section warns against. The shipped model instead diffuses each sheep's panic *toward its hottest neighbor's influence* at a rate below 1/step. Because the pull never fully offsets decay, a mutually-panicking cluster always relaxes once its source (the dog) leaves — no self-sustaining fixed point, so a scatter is always recoverable — while a truly terrified neighbor still tips calm sheep over the threshold. See `src/sim/panic.ts`.
 
 ### Decay
 
@@ -68,11 +72,14 @@ The dog exerts fear on sheep via a **state-dependent fear radius**. Ordering, mi
 
 ### Dog states / input
 
-- **Mouse move** → trot toward mouse (eased).
-- **Left-click (no drag)** → snap prone. The dog snaps its facing toward the nearest flock/sheep and holds position (the "eye"). Fear radius shrinks to prone. Acts as a **soft wall**: sheep are aware of it and won't cross it, but a prone dog doesn't panic them — you can pin a group against it while you go collect stragglers.
-- **Left-click-drag** → stalk. Slow deliberate walk along the drag; intermediate fear radius; sheep give ground steadily. Releasing returns to trot-follow.
+The implemented control model treats **holding left as planting the dog**; only mouse *motion while held* distinguishes stalk from a stop. (This supersedes the earlier "click = snap prone" phrasing.)
+
+- **Mouse move, no button** → trot toward mouse (eased). Default state, largest fear radius.
+- **Hold left + keep the mouse moving** → stalk. Slow deliberate creep toward the cursor; intermediate fear radius; sheep give ground steadily.
+- **Hold left + hold the mouse still** → prone / plant. The dog hard-stops and snaps its facing toward the nearest sheep (the "eye"); smallest fear radius. Acts as a **soft wall**: sheep are aware of it and won't cross it, but a prone dog doesn't panic them — pin a group against it while you collect stragglers. (A short idle timer flips a stalk back to a stop when the mouse goes still; tunable via `STALK_IDLE_MS`.)
+- **Release left** → back to trot-follow.
 - **Right-click → bark.** Radial panic pulse: momentary fear-radius spike that injects a burst of panic in a radius. Use to unstick jammed sheep or reset a corner. Cooldown.
-- **Shift-click → big bark.** A **cone** shaped burst: shoves a group hard in the facing direction. Power move for driving through a gate. Cooldown (longer than bark).
+- **Shift-click → big bark.** A **cone** shaped burst that shoves a group in the facing direction. *Deferred — not yet implemented.*
 - Moving and barking are **independent** — the dog can move and bark together or separately.
 
 ---
@@ -114,7 +121,7 @@ Aerial top-down. **Axis-locked — does not rotate** to dog heading (readable, s
 Levels are **data-driven polygons** in `data/levels/`:
 
 - **Field boundary** polygon (sheep and dog pushed out at edges — sheep never escape or get lost).
-- **Obstacle** polygons (block both sheep and dog; chutes and gates the dog can't shortcut = real puzzle design).
+- **Obstacle** polygons (block both sheep and dog; chutes and gates the dog can't shortcut = real puzzle design). *Implemented:* a `LevelDef` may include `obstacles` (flat polygons); their walls join the collision set with the walkable side outward, so sheep and dog slide around them. See `data/levels/level2.ts` for a mid-field boulder.
 - **Pen** polygon + **gate** segment (the narrow opening).
 - **Spawn region(s)** for sheep.
 
