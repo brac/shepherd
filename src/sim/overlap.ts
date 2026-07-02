@@ -11,7 +11,7 @@
 
 import { FLAG_PENNED, type GameState } from "../state/gameState";
 import { colOf, rowOf } from "./spatialHash";
-import { collideWalls, collideOneWall, collideOut } from "./collision";
+import { collideWalls, collideOut } from "./collision";
 import { OVERLAP_PASSES, SHEEP_COLLIDE_DIST, SHEEP_RADIUS } from "../../data/tuning";
 
 export function resolveOverlap(state: GameState): void {
@@ -85,18 +85,16 @@ export function resolveOverlap(state: GameState): void {
     }
   }
 
-  // Re-clamp against fences so a de-overlap push can't leave a sheep inside a wall
-  // (or, for penned sheep, leak back out through the gate).
+  // Re-clamp against fences so a de-overlap push can't leave a sheep inside a wall.
+  // Penned sheep use the fully-enclosed pen boundary (can't be pushed out); everyone
+  // else uses the open-gate wall set.
+  const level = state.level;
   for (let i = 0; i < s.count; i++) {
-    collideWalls(state.level.walls, state.level.wallCount, s.posX[i], s.posY[i], 0, 0, SHEEP_RADIUS);
-    let nx = collideOut.x;
-    let ny = collideOut.y;
-    if (s.flags[i] & FLAG_PENNED) {
-      collideOneWall(state.level.gateWall, nx, ny, 0, 0, SHEEP_RADIUS);
-      nx = collideOut.x;
-      ny = collideOut.y;
-    }
-    s.posX[i] = nx;
-    s.posY[i] = ny;
+    const penned = (s.flags[i] & FLAG_PENNED) !== 0;
+    const walls = penned ? level.pennedWalls : level.walls;
+    const wallCount = penned ? level.pennedWallCount : level.wallCount;
+    collideWalls(walls, wallCount, s.posX[i], s.posY[i], 0, 0, SHEEP_RADIUS);
+    s.posX[i] = collideOut.x;
+    s.posY[i] = collideOut.y;
   }
 }

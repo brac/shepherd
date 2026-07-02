@@ -39,10 +39,15 @@ export interface Level {
   fieldPoly: Float32Array;
   penPoly: Float32Array;
   obstacles: Float32Array[]; // obstacle polygons (for rendering; collision uses `walls`)
-  walls: Float32Array; // packed [ax,ay,bx,by,nx,ny]* — field + pen (minus gate) + obstacles
+  // For UNPENNED sheep and the dog: field + pen fence (minus gate, walkable=exterior) + obstacles.
+  walls: Float32Array; // packed [ax,ay,bx,by,nx,ny]*
   wallCount: number;
+  // For PENNED sheep: field + obstacles + the FULL pen boundary with inward normals
+  // (every edge incl. the gate is solid from the inside) so a penned sheep can never
+  // leave, no matter what pulls on it.
+  pennedWalls: Float32Array;
+  pennedWallCount: number;
   gate: Gate;
-  gateWall: Wall; // the gate segment, collides ONLY penned sheep (one-way)
   spawn: { x: number; y: number; w: number; h: number };
   dogStartX: number;
   dogStartY: number;
@@ -70,7 +75,8 @@ export function buildLevel(def: LevelDef): Level {
   // Field: bodies live inside. Pen: bodies (approaching) live outside; skip the gate
   // edge. Obstacles: bodies live outside (walkable = exterior), same as the pen fence.
   const fieldWalls = polygonToWalls(fieldPoly, true);
-  const penWalls = polygonToWalls(penPoly, false, def.gateEdge);
+  const penExteriorWalls = polygonToWalls(penPoly, false, def.gateEdge); // approach side, gate open
+  const penInteriorWalls = polygonToWalls(penPoly, true); // full closed, normals point inward
   const obstacles: Float32Array[] = [];
   let obstacleWalls: Wall[] = [];
   if (def.obstacles) {
@@ -80,7 +86,10 @@ export function buildLevel(def: LevelDef): Level {
       obstacleWalls = obstacleWalls.concat(polygonToWalls(poly, false));
     }
   }
-  const walls = packWalls(fieldWalls.concat(penWalls).concat(obstacleWalls));
+  // Unpenned sheep + dog: pen fence blocks from outside, gate is open.
+  const walls = packWalls(fieldWalls.concat(penExteriorWalls).concat(obstacleWalls));
+  // Penned sheep: fully enclosed by the pen (gate included) so they cannot leave.
+  const pennedWalls = packWalls(fieldWalls.concat(penInteriorWalls).concat(obstacleWalls));
 
   // Gate segment = the skipped pen edge.
   const n = penPoly.length / 2;
@@ -103,9 +112,6 @@ export function buildLevel(def: LevelDef): Level {
 
   const gate: Gate = { ax, ay, bx, by, midX, midY, inwardNx: inx, inwardNy: iny };
 
-  // One-way gate wall: normal points into the pen so penned sheep can't leak out.
-  const gateWall: Wall = { ax, ay, bx, by, nx: inx, ny: iny };
-
   return {
     name: def.name,
     sheepCount: def.sheepCount,
@@ -114,8 +120,9 @@ export function buildLevel(def: LevelDef): Level {
     obstacles,
     walls,
     wallCount: walls.length / 6,
+    pennedWalls,
+    pennedWallCount: pennedWalls.length / 6,
     gate,
-    gateWall,
     spawn: { ...def.spawn },
     dogStartX: def.dogStart.x,
     dogStartY: def.dogStart.y,

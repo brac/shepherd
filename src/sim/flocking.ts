@@ -14,7 +14,7 @@ import {
   type GameState,
 } from "../state/gameState";
 import { colOf, rowOf } from "./spatialHash";
-import { collideWalls, collideOneWall, collideOut } from "./collision";
+import { collideWalls, collideOut } from "./collision";
 import { nextRange } from "./rng";
 import {
   AWARENESS_RADIUS,
@@ -28,6 +28,9 @@ import {
   GRAZE_MAX_DWELL,
   GRAZE_MIN_DWELL,
   GRAZE_TURN,
+  HEADING_EASE,
+  HEADING_MIN_SPEED,
+  PENNED_SPEED,
   PEN_BACK_STRENGTH,
   PRONE_SOFTWALL_FORCE,
   PRONE_SOFTWALL_RADIUS,
@@ -48,6 +51,7 @@ import { W_FUNNEL as _WF, W_PEN_BACK as _WPB } from "../../data/tuning";
 
 const GRAZE_PANIC_EPS = 0.05; // panic below this counts as calm
 const NEIGHBOR_PANIC_EPS = 0.2; // a neighbor above this suppresses grazing
+const TWO_PI = Math.PI * 2;
 
 export function updateFlocking(state: GameState, dt: number): void {
   const s = state.sheep;
@@ -153,7 +157,7 @@ export function updateFlocking(state: GameState, dt: number): void {
         desX += _WPB * PEN_BACK_STRENGTH * (bx / bl);
         desY += _WPB * PEN_BACK_STRENGTH * (by / bl);
       }
-      integrate(s, i, px, py, vx, vy, desX, desY, SHEEP_WALK_SPEED, dt, level, true);
+      integrate(s, i, px, py, vx, vy, desX, desY, PENNED_SPEED, dt, level, true);
       continue;
     }
 
@@ -284,25 +288,31 @@ function integrate(
     vy *= k;
   }
 
-  // Integrate + collide.
+  // Integrate + collide. Penned sheep use the fully-enclosed inward pen boundary so
+  // they can never be pulled out; everyone else uses the open-gate wall set.
   let nx = px + vx * dt;
   let ny = py + vy * dt;
-  collideWalls(level.walls, level.wallCount, nx, ny, vx, vy, SHEEP_RADIUS);
+  const walls = penned ? level.pennedWalls : level.walls;
+  const wallCount = penned ? level.pennedWallCount : level.wallCount;
+  collideWalls(walls, wallCount, nx, ny, vx, vy, SHEEP_RADIUS);
   nx = collideOut.x;
   ny = collideOut.y;
   vx = collideOut.vx;
   vy = collideOut.vy;
-  if (penned) {
-    collideOneWall(level.gateWall, nx, ny, vx, vy, SHEEP_RADIUS);
-    nx = collideOut.x;
-    ny = collideOut.y;
-    vx = collideOut.vx;
-    vy = collideOut.vy;
-  }
 
   s.posX[i] = nx;
   s.posY[i] = ny;
   s.velX[i] = vx;
   s.velY[i] = vy;
-  if (sp > 4) s.heading[i] = Math.atan2(vy, vx);
+
+  // Heading eases toward the velocity direction (only while actually moving) so a
+  // jittering sheep can't spin — no per-frame 180 degrees snaps. Angle delta wrapped
+  // to [-pi, pi] arithmetically (one atan2, no extra trig).
+  if (sp > HEADING_MIN_SPEED) {
+    const target = Math.atan2(vy, vx);
+    let d = target - s.heading[i];
+    if (d > Math.PI) d -= TWO_PI;
+    else if (d < -Math.PI) d += TWO_PI;
+    s.heading[i] += d * Math.min(1, HEADING_EASE * dt);
+  }
 }

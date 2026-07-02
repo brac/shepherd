@@ -148,6 +148,42 @@ describe("smoke / invariants", () => {
     expect(deepPairs).toBeLessThan(10);
   });
 
+  it("penned sheep stay inside even when a flock pulls from outside the fence", () => {
+    const state = createGameState(level2);
+    const pen = state.level.penPoly;
+
+    // Sheep 0: penned, sitting just inside the right pen fence (x = 1850).
+    state.sheep.posX[0] = 1842;
+    state.sheep.posY[0] = 640;
+    state.sheep.prevX[0] = 1842;
+    state.sheep.prevY[0] = 640;
+    state.sheep.flags[0] |= FLAG_PENNED;
+    state.pennedCount = 1;
+
+    // A dense flock of unpenned sheep just OUTSIDE the right fence, within the penned
+    // sheep's awareness radius, so cohesion tugs it through the fence toward them.
+    for (let i = 1; i < 180; i++) {
+      const x = 1858 + (i % 12) * 6;
+      const y = 600 + ((i / 12) | 0) * 6;
+      state.sheep.posX[i] = x;
+      state.sheep.posY[i] = y;
+      state.sheep.prevX[i] = x;
+      state.sheep.prevY[i] = y;
+    }
+
+    for (let t = 0; t < 600; t++) {
+      state.input.mouseWorldX = -100000; // dog out of the way
+      state.input.mouseWorldY = -100000;
+      state.dog.x = -100000;
+      state.dog.y = -100000;
+      stepSim(state, DT);
+    }
+
+    // It must not have leaked out of the pen.
+    expect(state.sheep.posX[0]).toBeLessThan(1850);
+    expect(pointInPolygon(state.sheep.posX[0], state.sheep.posY[0], pen)).toBe(true);
+  });
+
   it("obstacle blocks sheep — none penetrate the boulder when pushed into it", () => {
     const state = createGameState(level2);
     const boulder = state.level.obstacles[0];

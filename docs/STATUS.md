@@ -38,6 +38,9 @@ All in `data/tuning.ts`. Current values reflect a first feel pass:
 - Dog trot 170 vs sheep flee 152 / walk 78 — dog only slightly outpaces fleeing sheep so it can flank without trivially running them down. **This ratio is the #1 feel dial; keep iterating in playtest.**
 - Panic: decay 0.9/s (forgiving), propagation pull 4.0/s, base inject 4.5 (head-on crosses the 0.6 flight threshold; flanking stays gentle via the angle floor). Bark cooldown 0.8s.
 - Hard body distance `SHEEP_COLLIDE_DIST` 11, `OVERLAP_PASSES` 2.
+- Penned sheep move at `PENNED_SPEED` 40 (calm shuffle) with a gentle `PEN_BACK_STRENGTH` 0.3. Heading eases toward velocity (`HEADING_EASE`, `HEADING_MIN_SPEED`) so a jittering sheep can't spin.
+
+**Pen enclosure:** penned sheep collide against a *separate* wall set (`level.pennedWalls`) — the full pen boundary with inward normals (gate included) — so they can never be pulled out, even by a flock cohering just outside the fence. Unpenned sheep + the dog use `level.walls` (fence blocks from outside, gate open). Built in `src/state/level.ts`.
 
 ## Performance
 

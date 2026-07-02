@@ -12,7 +12,12 @@ export const SHEEP_RADIUS = 5;
 export const SHEEP_WALK_SPEED = 78; // max speed when calm/edgy
 export const SHEEP_FLEE_SPEED = 152; // max speed when fleeing (dog only slightly outpaces it)
 export const SHEEP_GRAZE_SPEED = 8; // wander speed at rest
+export const PENNED_SPEED = 40; // calm shuffle once safely in the pen
 export const SHEEP_MAX_FORCE = 420; // steering force clamp (px/s^2 equivalent)
+
+// ---- Heading (visual orientation) ----
+export const HEADING_EASE = 12; // rate heading eases toward velocity direction (1/s)
+export const HEADING_MIN_SPEED = 6; // below this speed, heading holds (no spin when idle)
 
 // ---- Boid neighborhood ----
 export const AWARENESS_RADIUS = 80; // cohesion/alignment/propagation range (== hash cell size)
@@ -74,7 +79,7 @@ export const FUNNEL_STRENGTH = 1.2; // steer weight toward the gate mouth
 export const FUNNEL_INSET = 26; // how far inside the gate the attractor point sits
 
 // ---- Pen ----
-export const PEN_BACK_STRENGTH = 0.4; // push penned sheep toward the far interior
+export const PEN_BACK_STRENGTH = 0.3; // gentle push of penned sheep toward the far interior
 
 // ---- Input ----
 // Hold left = plant the dog. If the mouse keeps moving while held -> stalk (creep);

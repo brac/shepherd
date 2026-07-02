@@ -6,7 +6,7 @@
 // Zero allocation: results are written to the module-level `collideOut` scratch.
 // Single-threaded sim, so a shared scratch is safe and deterministic.
 
-import { closestPointOnSegment, type Wall } from "./geometry";
+import { closestPointOnSegment } from "./geometry";
 
 export const collideOut = { x: 0, y: 0, vx: 0, vy: 0, hit: false };
 
@@ -71,54 +71,4 @@ export function collideWalls(
   collideOut.vx = vx;
   collideOut.vy = vy;
   collideOut.hit = hit;
-}
-
-/** Resolve a single body against one wall (used for the one-way gate). */
-export function collideOneWall(
-  wall: Wall,
-  px: number,
-  py: number,
-  vx: number,
-  vy: number,
-  radius: number,
-): void {
-  const cp = closestPointOnSegment(px, py, wall.ax, wall.ay, wall.bx, wall.by);
-  const ddx = px - cp.x;
-  const ddy = py - cp.y;
-  const d2 = ddx * ddx + ddy * ddy;
-  if (d2 >= radius * radius) {
-    collideOut.x = px;
-    collideOut.y = py;
-    collideOut.vx = vx;
-    collideOut.vy = vy;
-    collideOut.hit = false;
-    return;
-  }
-  const d = Math.sqrt(d2);
-  let ux: number;
-  let uy: number;
-  if (d > 1e-6) {
-    ux = ddx / d;
-    uy = ddy / d;
-  } else {
-    ux = wall.nx;
-    uy = wall.ny;
-  }
-  if (ux * wall.nx + uy * wall.ny < 0) {
-    ux = -ux;
-    uy = -uy;
-  }
-  const push = radius - d;
-  px += ux * push;
-  py += uy * push;
-  const vn = vx * ux + vy * uy;
-  if (vn < 0) {
-    vx -= vn * ux;
-    vy -= vn * uy;
-  }
-  collideOut.x = px;
-  collideOut.y = py;
-  collideOut.vx = vx;
-  collideOut.vy = vy;
-  collideOut.hit = true;
 }
