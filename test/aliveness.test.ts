@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createGameState, type GameState } from "../src/state/gameState";
+import { ACT_ALERT, ACT_GRAZE, ACT_REST } from "../src/state/gameState";
 import { level1 } from "../data/levels/level1";
 import { rebuildGrid } from "../src/sim/spatialHash";
 import { updatePanic } from "../src/sim/panic";
@@ -9,6 +10,8 @@ import {
   BIRD_STARTLE_TTL,
   GRAZE_CLUSTER_RADIUS,
   PANIC_PROPAGATE_MIN,
+  REST_RISE_DELAY,
+  STRAY_AROUSAL,
   WAVE_SPEED,
 } from "../data/tuning";
 
@@ -257,5 +260,134 @@ describe("Phase 2A M3 — grazing clusters", () => {
     expect(cov(dA)).toBeGreaterThan(0.33);
     // ...and the clumps reshuffle rather than freezing into fixed groups.
     expect(corr(dA, dB)).toBeLessThan(0.85);
+  });
+});
+
+describe("Phase 2A M4 — rest state + lone-sheep return", () => {
+  it("an idle flock lies down over time, mixed with grazers, and the resting set churns", () => {
+    const state = createGameState(level1);
+    const s = state.sheep;
+
+    const restingSet = (): Set<number> => {
+      const set = new Set<number>();
+      for (let i = 0; i < s.count; i++) if (s.activity[i] === ACT_REST) set.add(i);
+      return set;
+    };
+    const idle = (steps: number): void => {
+      for (let t = 0; t < steps; t++) {
+        parkDog(state);
+        silenceAmbient(state);
+        stepSim(state, DT);
+      }
+    };
+
+    idle(9600); // ~40 s: staggered onsets (10–90 s) mean a good fraction has lain down
+    const a = restingSet();
+    expect(a.size).toBeGreaterThan(0); // some sheep are resting
+
+    idle(3600); // ~15 s more
+    const b = restingSet();
+
+    // The flock never rests in lockstep — grazers coexist with sleepers (anti-sync).
+    let grazing = 0;
+    for (let i = 0; i < s.count; i++) if (s.activity[i] === ACT_GRAZE) grazing++;
+    expect(grazing).toBeGreaterThan(0);
+
+    // The resting population turns over (some rose, some newly lay down) — not frozen.
+    let changed = 0;
+    a.forEach((i) => {
+      if (!b.has(i)) changed++;
+    });
+    b.forEach((i) => {
+      if (!a.has(i)) changed++;
+    });
+    expect(changed).toBeGreaterThan(0);
+  });
+
+  it("a startled sleeper wakes with a rise-delay (laggard drama), not instantly", () => {
+    const state = createGameState(level1);
+    parkDog(state);
+    silenceAmbient(state);
+    const s = state.sheep;
+
+    // Sheep 0 is deep in a rest bout, surrounded by its (calm) flockmates so isolation
+    // isn't the wake trigger — a mild fright is. Panic sits above REST_WAKE_PANIC (0.12)
+    // but well below the flight threshold, so it must *wake and rise*, not bolt.
+    s.activity[0] = ACT_REST;
+    s.restTimer[0] = 100;
+    s.panic[0] = 0.2;
+    s.panicPrev[0] = 0.2;
+
+    rebuildGrid(state);
+    stepSim(state, DT);
+
+    // The wake trigger fired, but the rise-delay holds it lying down for this beat...
+    expect(s.activity[0]).toBe(ACT_REST);
+    expect(s.restTimer[0]).toBeLessThanOrEqual(REST_RISE_DELAY);
+
+    // ...then, once REST_RISE_DELAY has elapsed, it rises.
+    const riseSteps = Math.ceil(REST_RISE_DELAY / DT) + 5;
+    for (let t = 0; t < riseSteps; t++) {
+      parkDog(state);
+      silenceAmbient(state);
+      stepSim(state, DT);
+    }
+    expect(s.activity[0]).not.toBe(ACT_REST);
+  });
+
+  it("a stranded sheep is tagged ALERT with an arousal floor, then hurries home and clears", () => {
+    const state = createGameState(level1);
+    const s = state.sheep;
+
+    // A tight flock clump with sheep 0 stranded ~450px north, well beyond awareness.
+    for (let i = 1; i < s.count; i++) {
+      const x = 700 + ((i % 15) - 7) * 6;
+      const y = 600 + ((((i / 15) | 0) % 15) - 7) * 6;
+      s.posX[i] = x;
+      s.posY[i] = y;
+      s.prevX[i] = x;
+      s.prevY[i] = y;
+    }
+    s.posX[0] = 700;
+    s.posY[0] = 150;
+    s.prevX[0] = 700;
+    s.prevY[0] = 150;
+
+    const centroid = (): { x: number; y: number } => {
+      let sx = 0;
+      let sy = 0;
+      for (let i = 1; i < s.count; i++) {
+        sx += s.posX[i];
+        sy += s.posY[i];
+      }
+      const n = s.count - 1;
+      return { x: sx / n, y: sy / n };
+    };
+    const c0 = centroid();
+    const dist0 = Math.hypot(s.posX[0] - c0.x, s.posY[0] - c0.y);
+
+    parkDog(state);
+    silenceAmbient(state);
+    rebuildGrid(state);
+    stepSim(state, DT);
+
+    // While stranded: anxious (ALERT) and mildly aroused (isolation arousal floor).
+    expect(s.activity[0]).toBe(ACT_ALERT);
+    expect(s.strayTimer[0]).toBeGreaterThan(0);
+    expect(s.panic[0]).toBeGreaterThanOrEqual(STRAY_AROUSAL - 1e-6);
+
+    // It closes the gap back to the flock...
+    for (let t = 0; t < 1400; t++) {
+      parkDog(state);
+      silenceAmbient(state);
+      stepSim(state, DT);
+    }
+    const c1 = centroid();
+    const dist1 = Math.hypot(s.posX[0] - c1.x, s.posY[0] - c1.y);
+    expect(dist1).toBeLessThan(dist0 * 0.5);
+
+    // ...and once rejoined, the stray flags clear (timer reset, arousal decayed away).
+    expect(s.strayTimer[0]).toBe(0);
+    expect(s.activity[0]).not.toBe(ACT_ALERT);
   });
 });

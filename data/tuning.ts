@@ -188,10 +188,26 @@ export const GRAZE_SATISFIED_N = 8; // close companions at which graze cohesion 
 export const W_GRAZE_COHESION = 0.35; // max graze-cohesion weight (when alone); below wander,
 // far below the herding W_COHESION 0.9 — aliveness never fights herding. THE feel dial of M3.
 
-// ---- Rest (§1 REST) ----
-// Real rest bouts run 45–90 min (~2x a graze bout); compressed to seconds here.
+// ---- Rest (§1 REST, M4) ----
+// A GRAZE-calm, undisturbed sheep counts restTimer down to zero and lies down; the same
+// timer then becomes the rest-bout / rise clock. It rises when panic/neighbours/dog wake
+// it — but not instantly: a wake trigger only shortens the clock to REST_RISE_DELAY (the
+// ~0.4 s reaction latency measured in fish schools), so a startled sleeper is the visible
+// laggard before it scrambles up. Real rest bouts run 45–90 min (~2x a graze bout).
 export const REST_ONSET_MIN = 20; // seconds calm before a sheep may lie down (min)
 export const REST_ONSET_MAX = 60; // (max); scaled per-sheep by restBias
+export const REST_DURATION_MIN = 30; // seconds a rest bout lasts (~2x a graze bout, compressed)
+export const REST_DURATION_MAX = 90; // (max); scaled per-sheep by restBias
+export const REST_WAKE_PANIC = 0.12; // own panic above this wakes a resting sheep
+export const REST_RISE_DELAY = 0.4; // seconds between a wake trigger and actually rising (fish latency)
+
+// ---- Lone-sheep return (§2.1, M4) ----
+// The topological rejoin already sprints a stray back; this makes it READ as notice-then-
+// hurry rather than a tractor beam. The rejoin weight ramps from ~0 to full over
+// STRAY_RAMP_TIME once a sheep is stranded, and the stray holds a small arousal floor
+// (isolation is measurably arousing — Michelena 2011) that clears the moment it rejoins.
+export const STRAY_RAMP_TIME = 0.7; // seconds to ramp the rejoin pull from 0 to full (drift-then-hurry)
+export const STRAY_AROUSAL = 0.1; // panic floor held while stranded (below flight threshold)
 
 // ---- Trample / worn paths (§2.6) ----
 export const TRAMPLE_CELL = 32; // coarse traffic-grid cell size (px)

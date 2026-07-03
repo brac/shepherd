@@ -9,6 +9,7 @@
 import {
   ACT_ALERT,
   ACT_GRAZE,
+  ACT_REST,
   DOG_PRONE,
   DOG_STALK,
   FLAG_FLEEING,
@@ -44,12 +45,20 @@ import {
   PRONE_SOFTWALL_RADIUS,
   REAR_WEIGHT,
   REJOIN_MIN_NEIGHBORS,
+  REST_DURATION_MAX,
+  REST_DURATION_MIN,
+  REST_ONSET_MAX,
+  REST_ONSET_MIN,
+  REST_RISE_DELAY,
+  REST_WAKE_PANIC,
   SEPARATION_RADIUS,
   SHEEP_FLEE_SPEED,
   SHEEP_GRAZE_SPEED,
   SHEEP_MAX_FORCE,
   SHEEP_RADIUS,
   SHEEP_WALK_SPEED,
+  STRAY_AROUSAL,
+  STRAY_RAMP_TIME,
   TOPO_K,
   W_ALIGNMENT,
   W_COHESION,
@@ -360,7 +369,12 @@ export function updateFlocking(state: GameState, dt: number): void {
     // K nearest flockmates (found via an outward ring search, so distance is no object).
     // The pull scales with isolation, so a fully lone sheep is pulled hardest while a
     // sheared-off *group* (still has internal neighbours) is left free to drift.
-    if (cohN < REJOIN_MIN_NEIGHBORS) {
+    // M4 polish: it reads as notice-then-hurry — strayTimer ramps the pull from ~0 to full
+    // over STRAY_RAMP_TIME (drift, then hurry, not a tractor beam) and holds a small arousal
+    // floor while stranded (lone sheep are measurably more aroused — Michelena 2011).
+    const stray = cohN < REJOIN_MIN_NEIGHBORS;
+    if (stray) {
+      s.strayTimer[i] += dt;
       findKNearestCentroid(state, i, px, py);
       if (rejoinOut.found) {
         const rdx = rejoinOut.x - px;
@@ -368,11 +382,15 @@ export function updateFlocking(state: GameState, dt: number): void {
         const rl = Math.sqrt(rdx * rdx + rdy * rdy);
         if (rl > 1e-3) {
           const iso = (REJOIN_MIN_NEIGHBORS - cohN) / REJOIN_MIN_NEIGHBORS; // 1 when alone
-          const w = W_REJOIN * iso;
+          const ramp = s.strayTimer[i] < STRAY_RAMP_TIME ? s.strayTimer[i] / STRAY_RAMP_TIME : 1;
+          const w = W_REJOIN * iso * ramp;
           desX += (rdx / rl) * w;
           desY += (rdy / rl) * w;
         }
       }
+      if (!fleeing && s.panic[i] < STRAY_AROUSAL) s.panic[i] = STRAY_AROUSAL; // clears on rejoin
+    } else {
+      s.strayTimer[i] = 0;
     }
 
     // ---- Separation (always full strength) ----
@@ -410,36 +428,77 @@ export function updateFlocking(state: GameState, dt: number): void {
       desY += (fdy / fd) * strength;
     }
 
-    // ---- Activity: GRAZE (calm) / ALERT (a disturbance passing) ----
+    // ---- Activity: REST / GRAZE (calm) / ALERT (a disturbance passing) ----
     // A stranded sheep is anxious, not content — it hurries back at walk speed rather
     // than grazing slowly, so the rejoin pull isn't throttled to graze speed. (`calm` was
     // computed above, before cohesion, so grazing sheep use the saturating graze cohesion.)
     let maxSpeed = fleeing ? SHEEP_FLEE_SPEED : SHEEP_WALK_SPEED;
+
+    // REST (M4): resolve an already-lying sheep first. restTimer, seeded as the GRAZE->REST
+    // onset, is repurposed here as the rest-bout / rise clock. A wake signal (own panic,
+    // a panicking neighbour, the dog within awareness, a gust, or being stranded) doesn't
+    // bolt it instantly — it shortens the clock to REST_RISE_DELAY, so the sleeper is the
+    // visible laggard for the ~0.4 s reaction-latency beat, then rises to GRAZE (reseeding
+    // the onset). Panic crossing the flight threshold overrides everything and it bolts.
+    let resting = s.activity[i] === ACT_REST;
+    if (resting) {
+      if (fleeing) {
+        resting = false; // drama over — it bolts
+      } else {
+        const wake =
+          panicI > REST_WAKE_PANIC || sawPanicNeighbor || dogD2 < aware2 || gustAlert || stray;
+        if (wake && s.restTimer[i] > REST_RISE_DELAY) s.restTimer[i] = REST_RISE_DELAY;
+        s.restTimer[i] -= dt;
+        if (s.restTimer[i] <= 0) {
+          resting = false; // rose
+          s.restTimer[i] = nextRange(rng, REST_ONSET_MIN, REST_ONSET_MAX) * s.restBias[i];
+        }
+      }
+    }
+
     // ALERT: a passing-disturbance beat, ONLY when the dog isn't actively pressuring this
     // sheep (dog beyond its fear reach) and the sheep is only lightly disturbed — own panic
     // in a thin low band (the wave brushing past), or a gust. It plants and stares (heading
     // set below). Within fear range, or more panicked than the band, it stays responsive
     // (walks/flees) and never freezes — so a herded flock keeps flowing.
     const alert =
+      !resting &&
       !calm &&
       !fleeing &&
       dogD2 > fear2 &&
       ((panicI >= ALERT_PANIC && panicI < ALERT_PANIC_MAX) || gustAlert);
-    if (calm) {
-      // wanderMul (M2): restless sheep push harder and change direction more often;
-      // placid sheep drift in longer, smaller steps — so grazing never looks uniform.
-      const wm = s.wanderMul[i];
-      s.grazeTimer[i] -= dt;
-      if (s.grazeTimer[i] <= 0) {
-        const ang = s.heading[i] + nextRange(rng, -GRAZE_TURN, GRAZE_TURN);
-        s.grazeDX[i] = Math.cos(ang);
-        s.grazeDY[i] = Math.sin(ang);
-        s.grazeTimer[i] = nextRange(rng, GRAZE_MIN_DWELL, GRAZE_MAX_DWELL) / wm;
+
+    if (resting) {
+      maxSpeed = 0; // planted; velocity eases to 0 and heading holds (< HEADING_MIN_SPEED)
+      s.activity[i] = ACT_REST;
+    } else if (calm) {
+      // Calm and undisturbed: tick down toward lying down; when it expires, lie down for a
+      // seeded bout (restBias-scaled). Otherwise graze-wander.
+      s.restTimer[i] -= dt;
+      if (s.restTimer[i] <= 0) {
+        s.restTimer[i] = nextRange(rng, REST_DURATION_MIN, REST_DURATION_MAX) * s.restBias[i];
+        maxSpeed = 0;
+        s.activity[i] = ACT_REST;
+      } else {
+        // wanderMul (M2): restless sheep push harder and change direction more often;
+        // placid sheep drift in longer, smaller steps — so grazing never looks uniform.
+        const wm = s.wanderMul[i];
+        s.grazeTimer[i] -= dt;
+        if (s.grazeTimer[i] <= 0) {
+          const ang = s.heading[i] + nextRange(rng, -GRAZE_TURN, GRAZE_TURN);
+          s.grazeDX[i] = Math.cos(ang);
+          s.grazeDY[i] = Math.sin(ang);
+          s.grazeTimer[i] = nextRange(rng, GRAZE_MIN_DWELL, GRAZE_MAX_DWELL) / wm;
+        }
+        desX += s.grazeDX[i] * 0.5 * wm;
+        desY += s.grazeDY[i] * 0.5 * wm;
+        maxSpeed = SHEEP_GRAZE_SPEED;
+        s.activity[i] = ACT_GRAZE;
       }
-      desX += s.grazeDX[i] * 0.5 * wm;
-      desY += s.grazeDY[i] * 0.5 * wm;
-      maxSpeed = SHEEP_GRAZE_SPEED;
-      s.activity[i] = ACT_GRAZE;
+    } else if (stray) {
+      // Anxious lone sheep: hurries back at walk speed (rejoin above owns the steering),
+      // head up and aroused rather than grazing — tag it ALERT for the visual read.
+      s.activity[i] = ACT_ALERT;
     } else if (alert) {
       maxSpeed = ALERT_SPEED; // below HEADING_MIN_SPEED, so it plants and the stare holds
       s.activity[i] = ACT_ALERT;
