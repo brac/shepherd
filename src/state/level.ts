@@ -17,6 +17,9 @@ export interface LevelDef {
   pen: number[]; // flat polygon, walkable = exterior (fence seen from the field)
   gateEdge: number; // index of the pen edge that is the open gate
   obstacles?: number[][]; // flat polygons blocking sheep AND dog (walkable = exterior)
+  // Terrain pooling (§2.5): weak attractors the idle flock slowly camps toward. Pure data;
+  // strength scales the pull, radius is the catchment. Optional (a level may have none).
+  poolingAttractors?: { x: number; y: number; strength: number; radius: number }[];
   spawn: { x: number; y: number; w: number; h: number };
   dogStart: { x: number; y: number };
   penBack: { x: number; y: number }; // far interior of the pen (circulate-to-back target)
@@ -55,6 +58,9 @@ export interface Level {
   penBackY: number;
   funnelX: number; // attractor point just inside the gate
   funnelY: number;
+  // Terrain pooling attractors, packed [x, y, strength, radius]* for zero-alloc iteration.
+  poolAttr: Float32Array;
+  poolCount: number;
 }
 
 function centroid(poly: Float32Array): { x: number; y: number } {
@@ -112,6 +118,16 @@ export function buildLevel(def: LevelDef): Level {
 
   const gate: Gate = { ax, ay, bx, by, midX, midY, inwardNx: inx, inwardNy: iny };
 
+  // Pack pooling attractors into a flat array (few per level; iterated in the hot loop).
+  const attrs = def.poolingAttractors ?? [];
+  const poolAttr = new Float32Array(attrs.length * 4);
+  for (let i = 0; i < attrs.length; i++) {
+    poolAttr[i * 4] = attrs[i].x;
+    poolAttr[i * 4 + 1] = attrs[i].y;
+    poolAttr[i * 4 + 2] = attrs[i].strength;
+    poolAttr[i * 4 + 3] = attrs[i].radius;
+  }
+
   return {
     name: def.name,
     sheepCount: def.sheepCount,
@@ -130,5 +146,7 @@ export function buildLevel(def: LevelDef): Level {
     penBackY: def.penBack.y,
     funnelX: midX + inx * FUNNEL_INSET,
     funnelY: midY + iny * FUNNEL_INSET,
+    poolAttr,
+    poolCount: attrs.length,
   };
 }

@@ -391,3 +391,44 @@ describe("Phase 2A M4 — rest state + lone-sheep return", () => {
     expect(s.activity[0]).not.toBe(ACT_ALERT);
   });
 });
+
+describe("Phase 2A M5 — terrain pooling", () => {
+  it("an undisturbed flock slowly drifts toward its terrain attractor", () => {
+    // level1 authors a single pooling attractor; its catchment covers the spawn, so an
+    // idle flock should migrate toward it (glance away, glance back — it has moved).
+    const state = createGameState(level1);
+    const s = state.sheep;
+    const pa = state.level.poolAttr;
+    expect(state.level.poolCount).toBeGreaterThan(0);
+    const ax = pa[0];
+    const ay = pa[1];
+
+    const distToAttractor = (): number => {
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < s.count; i++) {
+        cx += s.posX[i];
+        cy += s.posY[i];
+      }
+      cx /= s.count;
+      cy /= s.count;
+      return Math.hypot(cx - ax, cy - ay);
+    };
+
+    const idle = (steps: number): void => {
+      for (let t = 0; t < steps; t++) {
+        parkDog(state);
+        silenceAmbient(state);
+        stepSim(state, DT);
+      }
+    };
+
+    const d0 = distToAttractor();
+    idle(12000); // ~50 s of undisturbed grazing
+    const d1 = distToAttractor();
+
+    // The flock's centre of mass closed a meaningful chunk of the gap to the camp — a slow
+    // pool, not a snap (the pull is weak and resting sheep freeze partway).
+    expect(d1).toBeLessThan(d0 - 45);
+  });
+});

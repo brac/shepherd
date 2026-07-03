@@ -209,5 +209,15 @@ export const REST_RISE_DELAY = 0.4; // seconds between a wake trigger and actual
 export const STRAY_RAMP_TIME = 0.7; // seconds to ramp the rejoin pull from 0 to full (drift-then-hurry)
 export const STRAY_AROUSAL = 0.1; // panic floor held while stranded (below flight threshold)
 
+// ---- Terrain pooling (§2.5, M5) ----
+// The undisturbed flock slowly migrates toward per-level attractors (a shade corner, the
+// lee of a boulder) instead of freezing in place — glance away, glance back, it has moved.
+// A very weak pull (below the graze wander, far below herding) toward the nearest attractor
+// whose catchment contains the sheep, active ONLY at low panic so it never fights the dog:
+// the instant the flock is spooked (panic past POOL_PANIC_MAX) pooling switches off. Real
+// sheep camp on preferred ground ~64% of the time (MSD Vet Manual; Hilder 1966).
+export const W_POOL = 0.25; // pull weight toward the pool centre (below WANDER, << W_COHESION)
+export const POOL_PANIC_MAX = 0.1; // only sheep calmer than this pool (above it they're too edgy)
+
 // ---- Trample / worn paths (§2.6) ----
 export const TRAMPLE_CELL = 32; // coarse traffic-grid cell size (px)

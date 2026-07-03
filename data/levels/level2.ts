@@ -46,6 +46,12 @@ export const level2: LevelDef = {
   pen: PEN,
   gateEdge: 4,
   obstacles: [BOULDER],
+  // Two camps (M5): a shady upper-pasture spot reachable from spawn, and the boulder's
+  // southern lee. `nearest attractor` means a mid-field flock pools in the stone's shelter.
+  poolingAttractors: [
+    { x: 620, y: 340, strength: 1, radius: 460 },
+    { x: 1000, y: 940, strength: 0.8, radius: 320 },
+  ],
   spawn: { x: 180, y: 460, w: 420, h: 360 },
   dogStart: { x: 640, y: 640 },
   penBack: { x: PEN_RIGHT - 70, y: (PEN_TOP + PEN_BOTTOM) / 2 },

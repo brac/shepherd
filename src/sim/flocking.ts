@@ -41,6 +41,7 @@ import {
   PANIC_COHESION_GAIN,
   PENNED_SPEED,
   PEN_BACK_STRENGTH,
+  POOL_PANIC_MAX,
   PRONE_SOFTWALL_FORCE,
   PRONE_SOFTWALL_RADIUS,
   REAR_WEIGHT,
@@ -60,6 +61,7 @@ import {
   STRAY_AROUSAL,
   STRAY_RAMP_TIME,
   TOPO_K,
+  W_POOL,
   W_ALIGNMENT,
   W_COHESION,
   W_FEAR,
@@ -426,6 +428,37 @@ export function updateFlocking(state: GameState, dt: number): void {
       const strength = _WF * FUNNEL_STRENGTH * (1 - fd / FUNNEL_RADIUS);
       desX += (fdx / fd) * strength;
       desY += (fdy / fd) * strength;
+    }
+
+    // ---- Terrain pooling (M5): a very weak drift toward the nearest attractor whose
+    // catchment holds this sheep, for calm sheep only (panic < POOL_PANIC_MAX). So the
+    // undisturbed flock slowly migrates/re-pools instead of freezing; the pull vanishes
+    // the instant the dog spooks it. Weaker than the graze wander — aliveness never fights
+    // herding. Attractors are few per level, so the linear scan is cheap. ----
+    if (level.poolCount > 0 && panicI < POOL_PANIC_MAX) {
+      const pa = level.poolAttr;
+      let bestD2 = Infinity;
+      let bpx = 0;
+      let bpy = 0;
+      let bStr = 0;
+      for (let k = 0; k < level.poolCount; k++) {
+        const adx = pa[k * 4] - px;
+        const ady = pa[k * 4 + 1] - py;
+        const ad2 = adx * adx + ady * ady;
+        const arad = pa[k * 4 + 3];
+        if (ad2 < arad * arad && ad2 < bestD2) {
+          bestD2 = ad2;
+          bpx = adx;
+          bpy = ady;
+          bStr = pa[k * 4 + 2];
+        }
+      }
+      if (bestD2 < Infinity) {
+        const ad = Math.sqrt(bestD2) || 1e-3;
+        const w = W_POOL * bStr; // steady weak inward drift across the catchment (self-limits vs separation)
+        desX += (bpx / ad) * w;
+        desY += (bpy / ad) * w;
+      }
     }
 
     // ---- Activity: REST / GRAZE (calm) / ALERT (a disturbance passing) ----

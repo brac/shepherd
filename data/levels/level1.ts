@@ -32,6 +32,9 @@ export const level1: LevelDef = {
   field: FIELD,
   pen: PEN,
   gateEdge: 4, // edge (4 -> 5) is the gate opening
+  // A shady upper-pasture camp the idle flock slowly drifts toward (M5). One attractor,
+  // its catchment covering the spawn so an undisturbed flock migrates up and pools.
+  poolingAttractors: [{ x: 700, y: 300, strength: 1, radius: 500 }],
   spawn: { x: 180, y: 460, w: 420, h: 360 },
   dogStart: { x: 640, y: 640 },
   penBack: { x: PEN_RIGHT - 70, y: (PEN_TOP + PEN_BOTTOM) / 2 },

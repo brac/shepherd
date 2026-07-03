@@ -14,6 +14,7 @@ import {
 import { BIRD_STARTLE_RADIUS } from "../../data/tuning";
 
 const STARTLE_RING_COLOR = 0xffe066;
+const POOL_COLOR = 0x66d9ff; // soft blue — a terrain-pooling camp (M5)
 // Activity palette (dot per sheep).
 const COL_GRAZE = 0x6ab04c; // green — calm/grazing
 const COL_ALERT = 0xffe066; // yellow — planted and staring at a disturbance
@@ -52,6 +53,17 @@ export class DebugView {
       else if (s.activity[i] === ACT_FOLLOW) color = COL_FOLLOW;
       else color = COL_GRAZE;
       g.circle(s.posX[i], s.posY[i], 3.5).fill({ color, alpha: 0.9 });
+    }
+
+    // Terrain-pooling camps (M5): catchment ring + centre dot.
+    const level = state.level;
+    const pa = level.poolAttr;
+    for (let k = 0; k < level.poolCount; k++) {
+      const x = pa[k * 4];
+      const y = pa[k * 4 + 1];
+      const radius = pa[k * 4 + 3];
+      g.circle(x, y, radius).stroke({ color: POOL_COLOR, width: 2, alpha: 0.5 });
+      g.circle(x, y, 6).fill({ color: POOL_COLOR, alpha: 0.7 });
     }
 
     // Active ambient startle emitters (birds / gusts).
