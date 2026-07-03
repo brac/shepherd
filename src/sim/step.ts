@@ -5,6 +5,7 @@
 import type { GameState } from "../state/gameState";
 import { rebuildGrid } from "./spatialHash";
 import { updateDog } from "./dog";
+import { updateAmbient } from "./ambient";
 import { updatePanic } from "./panic";
 import { updateFlocking } from "./flocking";
 import { resolveOverlap } from "./overlap";
@@ -30,6 +31,9 @@ export function stepSim(state: GameState, dt: number): void {
 
   // 3. Spatial hash rebuilt from snapshot positions.
   rebuildGrid(state);
+
+  // 3.5 Ambient startle sources (birds/gusts) seed emitters BEFORE panic reads them.
+  updateAmbient(state, dt);
 
   // 4. Panic pass.
   updatePanic(state, dt);

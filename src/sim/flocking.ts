@@ -7,6 +7,8 @@
 // and regrouping are emergent consequences of local cohesion — do not add split/merge.
 
 import {
+  ACT_ALERT,
+  ACT_GRAZE,
   DOG_PRONE,
   DOG_STALK,
   FLAG_FLEEING,
@@ -17,6 +19,9 @@ import { colOf, rowOf } from "./spatialHash";
 import { collideWalls, collideOut } from "./collision";
 import { nextRange, nextSigned } from "./rng";
 import {
+  ALERT_PANIC,
+  ALERT_PANIC_MAX,
+  ALERT_SPEED,
   AWARENESS_RADIUS,
   BARK_RADIUS,
   FEAR_RADIUS_PRONE,
@@ -50,6 +55,7 @@ import {
   W_NOISE,
   W_REJOIN,
   W_SEPARATION,
+  WIND_ALERT_MIN,
 } from "../../data/tuning";
 
 // Import the tuning weights not re-exported above.
@@ -175,6 +181,7 @@ export function updateFlocking(state: GameState, dt: number): void {
   if (dog.barkTimer > 0) fearRadius = Math.max(fearRadius, BARK_RADIUS);
   const fear2 = fearRadius * fearRadius;
   const softwall2 = PRONE_SOFTWALL_RADIUS * PRONE_SOFTWALL_RADIUS;
+  const gustAlert = state.ambient.windAlert > WIND_ALERT_MIN; // a gust perks the whole flock
 
   for (let i = 0; i < s.count; i++) {
     const flags = s.flags[i];
@@ -215,6 +222,10 @@ export function updateFlocking(state: GameState, dt: number): void {
     let sepX = 0;
     let sepY = 0;
     let sawPanicNeighbor = false;
+    // Track the most-panicked neighbour so an ALERT sheep can turn to face the disturbance.
+    let hotPanic = 0;
+    let hotDX = 0;
+    let hotDY = 0;
 
     for (let rr = r0; rr <= r1; rr++) {
       const rowBase = rr * cols;
@@ -240,7 +251,14 @@ export function updateFlocking(state: GameState, dt: number): void {
                 sepX -= dx * w;
                 sepY -= dy * w;
               }
-              if (s.panicPrev[j] > NEIGHBOR_PANIC_EPS) sawPanicNeighbor = true;
+              if (s.panicPrev[j] > NEIGHBOR_PANIC_EPS) {
+                sawPanicNeighbor = true;
+                if (s.panicPrev[j] > hotPanic) {
+                  hotPanic = s.panicPrev[j];
+                  hotDX = dx;
+                  hotDY = dy;
+                }
+              }
             }
           }
           j = next[j];
@@ -278,6 +296,7 @@ export function updateFlocking(state: GameState, dt: number): void {
     }
 
     const fleeing = (flags & FLAG_FLEEING) !== 0;
+    const panicI = s.panic[i];
 
     // Dog geometry.
     const toDX = dog.x - px;
@@ -291,7 +310,6 @@ export function updateFlocking(state: GameState, dt: number): void {
     // Cohesion tightens with panic (selfish herd: a pressured flock bunches and rounds
     // up rather than shearing into singletons).
     if (cohWsum > 0) {
-      const panicI = s.panic[i];
       const cohBase = fleeing ? W_COHESION * FLEE_COHESION_DAMP : W_COHESION;
       const cw = cohBase * (1 + PANIC_COHESION_GAIN * panicI);
       const aw = fleeing ? W_ALIGNMENT * FLEE_COHESION_DAMP : W_ALIGNMENT;
@@ -364,16 +382,27 @@ export function updateFlocking(state: GameState, dt: number): void {
       desY += (fdy / fd) * strength;
     }
 
-    // ---- Grazing (calm, dog far, no panicking neighbor, and NOT a stray) ----
+    // ---- Activity: GRAZE (calm) / ALERT (a disturbance passing) ----
     // A stranded sheep is anxious, not content — it hurries back at walk speed rather
     // than grazing slowly, so the rejoin pull isn't throttled to graze speed.
     let maxSpeed = fleeing ? SHEEP_FLEE_SPEED : SHEEP_WALK_SPEED;
     const calm =
       !fleeing &&
-      s.panic[i] < GRAZE_PANIC_EPS &&
+      panicI < GRAZE_PANIC_EPS &&
       dogD2 > aware2 &&
       !sawPanicNeighbor &&
+      !gustAlert &&
       cohN >= REJOIN_MIN_NEIGHBORS;
+    // ALERT: a passing-disturbance beat, ONLY when the dog isn't actively pressuring this
+    // sheep (dog beyond its fear reach) and the sheep is only lightly disturbed — own panic
+    // in a thin low band (the wave brushing past), or a gust. It plants and stares (heading
+    // set below). Within fear range, or more panicked than the band, it stays responsive
+    // (walks/flees) and never freezes — so a herded flock keeps flowing.
+    const alert =
+      !calm &&
+      !fleeing &&
+      dogD2 > fear2 &&
+      ((panicI >= ALERT_PANIC && panicI < ALERT_PANIC_MAX) || gustAlert);
     if (calm) {
       s.grazeTimer[i] -= dt;
       if (s.grazeTimer[i] <= 0) {
@@ -385,6 +414,12 @@ export function updateFlocking(state: GameState, dt: number): void {
       desX += s.grazeDX[i] * 0.5;
       desY += s.grazeDY[i] * 0.5;
       maxSpeed = SHEEP_GRAZE_SPEED;
+      s.activity[i] = ACT_GRAZE;
+    } else if (alert) {
+      maxSpeed = ALERT_SPEED; // below HEADING_MIN_SPEED, so it plants and the stare holds
+      s.activity[i] = ACT_ALERT;
+    } else {
+      s.activity[i] = ACT_GRAZE; // walking normally (settling / fleeing owns its own motion)
     }
 
     // ---- Angular noise (per-sheep individuality; breaks the perfect-lattice/disc) ----
@@ -392,6 +427,20 @@ export function updateFlocking(state: GameState, dt: number): void {
     desY += nextSigned(rng, W_NOISE);
 
     integrate(s, i, px, py, vx, vy, desX, desY, maxSpeed, dt, level, false);
+
+    // An ALERT sheep turns to face the disturbance (the most-panicked neighbour, or the
+    // dog if it's the source). Done after integrate so it wins over velocity-facing.
+    if (alert) {
+      const dX = hotPanic > 0 ? hotDX : toDX;
+      const dY = hotPanic > 0 ? hotDY : toDY;
+      if (dX * dX + dY * dY > 1e-4) {
+        const target = Math.atan2(dY, dX);
+        let d = target - s.heading[i];
+        if (d > Math.PI) d -= TWO_PI;
+        else if (d < -Math.PI) d += TWO_PI;
+        s.heading[i] += d * Math.min(1, HEADING_EASE * dt);
+      }
+    }
   }
 }
 

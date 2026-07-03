@@ -134,8 +134,47 @@ export const REST_BIAS_MAX = 1.5;
 export const WANDER_MUL_MIN = 0.6; // graze-wander amount multiplier
 export const WANDER_MUL_MAX = 1.4;
 
-// ---- Startle sources (§3) ----
+// ---- Startle wave (§2.2, §3, M1) ----
+// Panic propagates outward from a source at a finite speed instead of jumping the whole
+// awareness radius in one step: a neighbour only spreads panic once it has been panicked
+// long enough for the disturbance to physically travel the gap (panicAge * WAVE_SPEED >=
+// distance). This makes a startle read as a visible expanding ripple that fades and dies
+// out partway through a large flock (~13.4 m/s agitation wave — Attanasi 2015).
+export const WAVE_SPEED = 140; // px/s (~12.7 m/s at 11 px/m) — front propagation speed
+
+// ---- Ambient startle sources (§3, M1) ----
 export const MAX_ACTIVE_STARTLES = 4; // fixed capacity for ambient startle emitters
+// Birds: an occasional flush pricks up a patch of the flock. Mild — an injection RATE
+// (per second), applied over the emitter's short life like a gentle dog nudge, so only
+// the nearest few sheep cross the flight threshold. A pretty ripple, never a scatter.
+export const BIRD_INTERVAL_MIN = 18; // seconds between bird flushes (min)
+export const BIRD_INTERVAL_MAX = 45; // (max); reseeded from the shared RNG on each fire
+export const BIRD_STARTLE_MAG = 2.0; // panic injection rate at the emitter centre (per s):
+// centre peak ≈ MAG*TTL ≈ 0.6, right at flight threshold, so only a sheep or two nearest
+// the flush bolts and a small ring pricks up — a pretty ripple, never a scatter.
+export const BIRD_STARTLE_RADIUS = 90; // falloff radius of a bird startle (px)
+export const BIRD_STARTLE_TTL = 0.3; // seconds an emitter stays active
+export const BIRD_OFFSET_MAX = 60; // how far from the chosen sheep the flush centres (px)
+// Wind gusts: the lowest-effort source — a gentle, decaying flock-wide "did you feel that?"
+// that briefly nudges calm sheep to ALERT without any panic injection.
+export const GUST_INTERVAL_MIN = 45; // seconds between gusts (min)
+export const GUST_INTERVAL_MAX = 90; // (max)
+export const GUST_ALERT = 0.22; // windAlert set on a gust (unitless alertness)
+export const GUST_DECAY = 1.2; // exponential decay of windAlert per second (brief perk)
+export const WIND_ALERT_MIN = 0.15; // windAlert above this biases calm sheep toward ALERT
+// (with the values above a gust holds the flock's attention only ~0.3s, then it passes)
+
+// ---- Alert (§2.2, M1) ----
+// The visible "did you hear that?" beat as a wave passes: a calm sheep whose own panic
+// sits in a low band, that sees a panicking neighbour, or that feels a gust stops and
+// faces the disturbance, then resolves back to grazing (or escalates to fleeing) as panic
+// rises or decays. No dedicated hold timer — the slow panic decay is the natural stare.
+export const ALERT_PANIC = 0.12; // own-panic floor to enter ALERT (above GRAZE_PANIC_EPS)
+export const ALERT_PANIC_MAX = 0.25; // ...and ceiling: a more-panicked sheep is edgy and MOVES
+// (normal walk/flee), it doesn't freeze. A THIN band, so only sheep the wave brushes lightly
+// stare — the ripple's leading edge — while the flock coming down from a real fright walks it
+// off instead of freezing en masse (which read as stubbornness after the dog pushed them).
+export const ALERT_SPEED = 5; // max speed while alert (< HEADING_MIN_SPEED: plants + stares)
 
 // ---- Rest (§1 REST) ----
 // Real rest bouts run 45–90 min (~2x a graze bout); compressed to seconds here.

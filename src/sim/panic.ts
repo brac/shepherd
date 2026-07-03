@@ -16,6 +16,7 @@ import {
   AWARE_RESET_TIME,
   BARK_BURST,
   BARK_RADIUS,
+  BIRD_STARTLE_RADIUS,
   DOG_TROT_SPEED,
   FEAR_RADIUS_PRONE,
   FEAR_RADIUS_STALK,
@@ -28,6 +29,7 @@ import {
   PANIC_DECAY_RATE,
   PANIC_PROPAGATE_MIN,
   PANIC_PROPAGATION_RATE,
+  WAVE_SPEED,
 } from "../../data/tuning";
 import { DOG_STALK } from "../state/gameState";
 
@@ -64,8 +66,23 @@ export function updatePanic(state: GameState, dt: number): void {
   const dogMoving = dogSpeed > 1e-3;
   const proneNow = dog.state === DOG_PRONE;
 
+  // Wave front: age each sheep's panic from the SNAPSHOT so the read below is
+  // order-independent. A neighbour can only spread panic once it has been panicked long
+  // enough for the disturbance to travel the gap (panicAge * WAVE_SPEED >= distance).
+  for (let i = 0; i < s.count; i++) {
+    if (s.panicPrev[i] > PANIC_PROPAGATE_MIN) s.panicAge[i] += dt;
+    else s.panicAge[i] = 0;
+  }
+
+  // Ambient startle emitters (seeded this step by updateAmbient) inject like the dog.
+  const amb = state.ambient;
+  const startleCap = amb.startleTtl.length;
+  const startleR2 = BIRD_STARTLE_RADIUS * BIRD_STARTLE_RADIUS;
+
   for (let i = 0; i < s.count; i++) {
     let p = s.panic[i];
+    const px = s.prevX[i];
+    const py = s.prevY[i];
 
     // --- Decay (forgiving) ---
     p *= decayMul;
@@ -107,6 +124,21 @@ export function updatePanic(state: GameState, dt: number): void {
       p += BARK_BURST * (1 - dist / BARK_RADIUS);
     }
 
+    // --- Ambient startle emitters (birds) — same radial injection path as the dog. ---
+    // A RATE applied over the emitter's short life, so a mild flush pricks up the nearest
+    // few sheep (crossing flight only very close in) and enters the wave machinery below.
+    for (let k = 0; k < startleCap; k++) {
+      if (amb.startleTtl[k] > 0) {
+        const ex = amb.startleX[k] - px;
+        const ey = amb.startleY[k] - py;
+        const ed2 = ex * ex + ey * ey;
+        if (ed2 < startleR2) {
+          const ed = Math.sqrt(ed2);
+          p += amb.startleMag[k] * (1 - ed / BIRD_STARTLE_RADIUS) * dt;
+        }
+      }
+    }
+
     // --- Propagation from neighbors (reads panicPrev snapshot) ---
     // Diffusion toward the hottest neighbor's *influence* (its panic scaled by
     // proximity — closer neighbors matter more), pulled at a rate < 1/step. Because
@@ -115,8 +147,6 @@ export function updatePanic(state: GameState, dt: number): void {
     // is always recoverable. A genuinely terrified neighbor still drags calm sheep
     // over the flight threshold, so cascades remain.
     let maxInfl = 0;
-    const px = s.prevX[i];
-    const py = s.prevY[i];
     const c = colOf(grid, px);
     const r = rowOf(grid, py);
     const c0 = c > 0 ? c - 1 : 0;
@@ -136,8 +166,11 @@ export function updatePanic(state: GameState, dt: number): void {
               const d2 = dx * dx + dy * dy;
               if (d2 < aware2) {
                 const d = Math.sqrt(d2);
-                const infl = npj * (1 - d / AWARENESS_RADIUS);
-                if (infl > maxInfl) maxInfl = infl;
+                // Wave front: skip a neighbour whose panic hasn't had time to reach here.
+                if (s.panicAge[j] * WAVE_SPEED >= d) {
+                  const infl = npj * (1 - d / AWARENESS_RADIUS);
+                  if (infl > maxInfl) maxInfl = infl;
+                }
               }
             }
           }

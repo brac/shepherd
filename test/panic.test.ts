@@ -49,9 +49,12 @@ describe("panic", () => {
     }
     expect(a).toBeGreaterThanOrEqual(0);
 
-    // a is terrified; snapshot must carry it for propagation to read.
+    // a is terrified; snapshot must carry it for propagation to read. panicAge marks it
+    // as an ESTABLISHED source (panicked long enough for the wave front to have reached b);
+    // a freshly-startled sheep radiates outward at WAVE_SPEED instead of jumping instantly.
     s.panic[a] = 1;
     s.panicPrev[a] = 1;
+    s.panicAge[a] = 1;
     const before = s.panic[b];
     rebuildGrid(state);
     updatePanic(state, DT);

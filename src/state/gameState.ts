@@ -4,7 +4,13 @@
 import { buildLevel, type Level, type LevelDef } from "./level";
 import { createRng, type Rng } from "../sim/rng";
 import { spawnSheep } from "../sim/spawn";
-import { AWARENESS_RADIUS, MAX_ACTIVE_STARTLES, TRAMPLE_CELL } from "../../data/tuning";
+import {
+  AWARENESS_RADIUS,
+  BIRD_INTERVAL_MIN,
+  GUST_INTERVAL_MIN,
+  MAX_ACTIVE_STARTLES,
+  TRAMPLE_CELL,
+} from "../../data/tuning";
 
 // Sheep flag bits (stored in the flags Uint8Array).
 export const FLAG_FLEEING = 1 << 0;
@@ -191,8 +197,9 @@ function createAmbient(): AmbientState {
     startleY: new Float32Array(MAX_ACTIVE_STARTLES),
     startleMag: new Float32Array(MAX_ACTIVE_STARTLES),
     startleTtl: new Float32Array(MAX_ACTIVE_STARTLES),
-    birdCountdown: 0, // updateAmbient self-seeds on the first step (M1)
-    gustCountdown: 0,
+    // First events fire after a natural delay (not at t=0), then reseed from the RNG.
+    birdCountdown: BIRD_INTERVAL_MIN,
+    gustCountdown: GUST_INTERVAL_MIN,
     windAlert: 0,
   };
 }

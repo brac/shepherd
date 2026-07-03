@@ -6,7 +6,9 @@ Current state of the project and what's next. Read this first when picking the w
 
 **Phase 1 is complete and playable.** A mouse-driven dog herds 500 boids through a narrow gate into a pen, with panic/flee, hard-body sheep, a gate funnel, one-way penning, circulate-to-back, camera follow, and a win condition. Obstacle support was added on top (level 2). Everything is deterministic and headless-testable.
 
-- **Run:** `npm run dev` → http://localhost:1574 (strictPort). `npm run build` (typecheck + bundle). `npm test` (vitest, 23 tests).
+**Phase 2A (flock aliveness) in progress — M0 + M1 done.** M0 laid the SoA scaffolding (activity states, per-sheep traits, ambient/trample state, debug overlay). **M1 (startle wave)** is now in: panic propagates outward at a finite `WAVE_SPEED` (via per-sheep `panicAge` gating) so a disturbance reads as an expanding ripple that fades and dies out partway through the flock instead of jumping instantly; ambient **bird** flushes (`src/sim/ambient.ts`, new `updateAmbient` pass at step 3.5) drop short-lived startle emitters that inject through the same panic path as the dog/bark, and **wind gusts** raise a decaying flock-wide alertness; grazing sheep hit by any of these enter **ACT_ALERT** — they plant and turn to face the disturbance, then resolve back to graze or escalate to flee. Verified headless (`test/aliveness.test.ts`): a single injected startle grows 113→357 panicked / 105→190 px radius, then fades, and ~29% never panic. **Next: M2 (traits wired in).**
+
+- **Run:** `npm run dev` → http://localhost:1574 (strictPort). `npm run build` (typecheck + bundle). `npm test` (vitest, 27 tests).
 - **Default level:** `level2` ("Standing Stone") — a boulder in the middle of the field. `level1` ("Open Pasture") is the obstacle-free version. Wired in `src/main.ts`.
 - **Repo:** https://github.com/brac/shepherd (branch `main`).
 
