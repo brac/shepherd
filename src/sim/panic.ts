@@ -17,7 +17,6 @@ import {
   BARK_BURST,
   BARK_RADIUS,
   BIRD_STARTLE_RADIUS,
-  DOG_TROT_SPEED,
   FEAR_RADIUS_PRONE,
   FEAR_RADIUS_STALK,
   FEAR_RADIUS_TROT,
@@ -55,7 +54,7 @@ export function updatePanic(state: GameState, dt: number): void {
   const fear2 = fearRadius * fearRadius;
 
   const dogSpeed = Math.hypot(dog.velX, dog.velY);
-  const speedFactor = 0.2 + 0.8 * Math.min(1, dogSpeed / DOG_TROT_SPEED);
+  const speedFactor = 0.2 + 0.8 * Math.min(1, dogSpeed / state.dev.dogTrotSpeed);
   // Normalized dog velocity direction (for head-on vs flanking).
   let dvx = 0;
   let dvy = 0;
@@ -83,6 +82,7 @@ export function updatePanic(state: GameState, dt: number): void {
     let p = s.panic[i];
     const px = s.prevX[i];
     const py = s.prevY[i];
+    const skit = s.skittish[i]; // per-sheep reactivity: jumpy sheep spike first (M2)
 
     // --- Decay (forgiving) ---
     p *= decayMul;
@@ -115,13 +115,13 @@ export function updatePanic(state: GameState, dt: number): void {
       // Surprise: less time in awareness -> higher injection.
       const habit = Math.min(1, s.dogAwareTime[i] / HABITUATION_TIME);
       const surprise = 1 + (HABITUATED_MIN - 1) * habit;
-      p += PANIC_BASE_INJECT * speedFactor * angleFactor * surprise * proximity * dt;
+      p += PANIC_BASE_INJECT * speedFactor * angleFactor * surprise * proximity * skit * dt;
     }
 
     // --- Bark burst (one-shot, radial, angle-independent) ---
     if (dog.barkFired && dogD2 < bark2) {
       const dist = Math.sqrt(dogD2);
-      p += BARK_BURST * (1 - dist / BARK_RADIUS);
+      p += BARK_BURST * (1 - dist / BARK_RADIUS) * skit;
     }
 
     // --- Ambient startle emitters (birds) — same radial injection path as the dog. ---
@@ -134,7 +134,7 @@ export function updatePanic(state: GameState, dt: number): void {
         const ed2 = ex * ex + ey * ey;
         if (ed2 < startleR2) {
           const ed = Math.sqrt(ed2);
-          p += amb.startleMag[k] * (1 - ed / BIRD_STARTLE_RADIUS) * dt;
+          p += amb.startleMag[k] * (1 - ed / BIRD_STARTLE_RADIUS) * skit * dt;
         }
       }
     }

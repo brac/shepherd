@@ -109,3 +109,69 @@ describe("Phase 2A M1 — startle wave", () => {
     expect(peak).toBeLessThan(s.count * 0.9);
   });
 });
+
+describe("Phase 2A M2 — anti-uniformity traits", () => {
+  it("seeds a spread of per-sheep traits, with skittishness centred near 1", () => {
+    const state = createGameState(level1);
+    const s = state.sheep;
+
+    const stats = (arr: Float32Array) => {
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] < min) min = arr[i];
+        if (arr[i] > max) max = arr[i];
+        sum += arr[i];
+      }
+      return { min, max, mean: sum / arr.length };
+    };
+
+    const sk = stats(s.skittish);
+    const sp = stats(s.speedMul);
+    const wm = stats(s.wanderMul);
+
+    // Every trait shows real spread across the flock (individuals, not clones).
+    expect(sk.max - sk.min).toBeGreaterThan(0.3);
+    expect(sp.max - sp.min).toBeGreaterThan(0.1);
+    expect(wm.max - wm.min).toBeGreaterThan(0.3);
+    // Skittishness averages ≈1 so wiring it into injection doesn't dampen the whole flock.
+    expect(sk.mean).toBeGreaterThan(0.85);
+    expect(sk.mean).toBeLessThan(1.15);
+  });
+
+  it("two equidistant sheep take different panic from the same pulse (skittishness)", () => {
+    const state = createGameState(level1);
+    parkDog(state);
+    const s = state.sheep;
+
+    // Two sheep the same distance (60px) either side of a startle centre, far enough apart
+    // (120px > awareness) that they don't cross-propagate — so only the trait differs.
+    const cx = 1000;
+    const cy = 600;
+    s.posX[0] = cx - 60;
+    s.posY[0] = cy;
+    s.prevX[0] = cx - 60;
+    s.prevY[0] = cy;
+    s.posX[1] = cx + 60;
+    s.posY[1] = cy;
+    s.prevX[1] = cx + 60;
+    s.prevY[1] = cy;
+    s.skittish[0] = 0.8; // placid
+    s.skittish[1] = 1.5; // jumpy
+
+    // One active startle emitter centred between them (radius covers both equally).
+    state.ambient.startleX[0] = cx;
+    state.ambient.startleY[0] = cy;
+    state.ambient.startleMag[0] = 6;
+    state.ambient.startleTtl[0] = BIRD_STARTLE_TTL;
+
+    rebuildGrid(state);
+    updatePanic(state, DT);
+
+    expect(s.panic[0]).toBeGreaterThan(0);
+    expect(s.panic[1]).toBeGreaterThan(0);
+    // The jumpy sheep took more — in proportion to its skittishness (equal decay from 0).
+    expect(s.panic[1]).toBeGreaterThan(s.panic[0] * 1.5);
+  });
+});

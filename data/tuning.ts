@@ -125,8 +125,10 @@ export const CAMERA_EASE = 3.5; // follow ease rate (1/s)
 // Seeded once at spawn, never mutated. Temperament is heritable & repeatable in real
 // sheep (r≈0.1–0.4; breeders select calm-vs-nervous lines — Merino temperament genetics
 // 2011). These make the flock read as individuals-in-a-mass rather than clones.
-export const SKITTISH_MIN = 0.6; // panic-injection multiplier floor (placid)
-export const SKITTISH_MAX = 1.6; // ceiling (jumpy); distribution skewed toward calm (u*u)
+export const SKITTISH_MIN = 0.75; // panic-injection multiplier floor (placid)
+export const SKITTISH_MAX = 1.6; // ceiling (jumpy); distribution skewed toward calm (u*u).
+// Range chosen so the u*u-skewed mean lands ≈1.0: wiring this into injection (M2) adds
+// per-sheep variation without globally raising or lowering how reactive the flock is.
 export const SPEED_VAR_MIN = 0.9; // per-sheep max-speed multiplier
 export const SPEED_VAR_MAX = 1.1;
 export const REST_BIAS_MIN = 0.5; // laziness: scales rest-onset time (low = rests sooner)

@@ -7,6 +7,7 @@ import { spawnSheep } from "../sim/spawn";
 import {
   AWARENESS_RADIUS,
   BIRD_INTERVAL_MIN,
+  DOG_TROT_SPEED,
   GUST_INTERVAL_MIN,
   MAX_ACTIVE_STARTLES,
   TRAMPLE_CELL,
@@ -115,6 +116,13 @@ export interface AmbientState {
   windAlert: number; // decaying flock-wide alertness from the last gust
 }
 
+/** Runtime dev-tool overrides, driven by the dev panel (toggled with `). NOT part of the
+ * determinism contract: defaults mirror data/tuning and tests never touch it, so headless
+ * runs stay identical. Live-tunable knobs for playtesting go here. */
+export interface DevState {
+  dogTrotSpeed: number; // dog max trot speed (overrides DOG_TROT_SPEED live)
+}
+
 /** Coarse traffic grid for worn paths (Phase 2A §2.6). Purely visual; no sim feedback. */
 export interface TrampleGrid {
   cellSize: number;
@@ -140,6 +148,7 @@ export interface GameState {
   grid: Grid;
   ambient: AmbientState;
   trample: TrampleGrid;
+  dev: DevState;
 }
 
 function polyBounds(poly: Float32Array): { minX: number; minY: number; maxX: number; maxY: number } {
@@ -280,6 +289,7 @@ export function createGameState(def: LevelDef, seedOverride?: number): GameState
     grid,
     ambient: createAmbient(),
     trample: createTrample(level),
+    dev: { dogTrotSpeed: DOG_TROT_SPEED },
   };
 
   spawnSheep(state);

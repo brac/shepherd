@@ -4,6 +4,7 @@
 import { createGameState } from "./state/gameState";
 import { level2 } from "../data/levels/level2";
 import { Renderer } from "./render/renderer";
+import { DevPanel } from "./render/devPanel";
 import { attachInput } from "./input/input";
 import { startLoop } from "./loop";
 
@@ -18,15 +19,18 @@ async function boot(): Promise<void> {
 
   attachInput(state, renderer.app.canvas, () => renderer.viewport());
 
-  // Phase 2A: 'D' toggles the debug overlay (attractors, startle rings, activity).
+  const devPanel = new DevPanel(state);
+
+  // 'D' toggles the Phase 2A debug overlay; ` toggles the dev-tools panel.
   window.addEventListener("keydown", (e) => {
     if (e.key === "d" || e.key === "D") renderer.toggleDebug();
+    else if (e.key === "`") devPanel.toggle();
   });
 
   startLoop(state, renderer.render);
 
   // Expose for quick console poking during tuning.
-  (window as unknown as { shepherd: unknown }).shepherd = { state, renderer };
+  (window as unknown as { shepherd: unknown }).shepherd = { state, renderer, devPanel };
 }
 
 boot().catch((err) => {

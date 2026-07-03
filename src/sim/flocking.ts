@@ -404,15 +404,18 @@ export function updateFlocking(state: GameState, dt: number): void {
       dogD2 > fear2 &&
       ((panicI >= ALERT_PANIC && panicI < ALERT_PANIC_MAX) || gustAlert);
     if (calm) {
+      // wanderMul (M2): restless sheep push harder and change direction more often;
+      // placid sheep drift in longer, smaller steps — so grazing never looks uniform.
+      const wm = s.wanderMul[i];
       s.grazeTimer[i] -= dt;
       if (s.grazeTimer[i] <= 0) {
         const ang = s.heading[i] + nextRange(rng, -GRAZE_TURN, GRAZE_TURN);
         s.grazeDX[i] = Math.cos(ang);
         s.grazeDY[i] = Math.sin(ang);
-        s.grazeTimer[i] = nextRange(rng, GRAZE_MIN_DWELL, GRAZE_MAX_DWELL);
+        s.grazeTimer[i] = nextRange(rng, GRAZE_MIN_DWELL, GRAZE_MAX_DWELL) / wm;
       }
-      desX += s.grazeDX[i] * 0.5;
-      desY += s.grazeDY[i] * 0.5;
+      desX += s.grazeDX[i] * 0.5 * wm;
+      desY += s.grazeDY[i] * 0.5 * wm;
       maxSpeed = SHEEP_GRAZE_SPEED;
       s.activity[i] = ACT_GRAZE;
     } else if (alert) {
@@ -421,6 +424,11 @@ export function updateFlocking(state: GameState, dt: number): void {
     } else {
       s.activity[i] = ACT_GRAZE; // walking normally (settling / fleeing owns its own motion)
     }
+
+    // speedMul (M2): a per-sheep max-speed multiplier (mean 1) so fleers/walkers spread out
+    // instead of moving as one rigid speed. Graze/alert scale too (a faster sheep creeps a
+    // touch faster); ALERT stays below HEADING_MIN_SPEED so the stare still holds.
+    maxSpeed *= s.speedMul[i];
 
     // ---- Angular noise (per-sheep individuality; breaks the perfect-lattice/disc) ----
     desX += nextSigned(rng, W_NOISE);

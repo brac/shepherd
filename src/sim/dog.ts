@@ -17,7 +17,6 @@ import {
   DOG_ARRIVE_RADIUS,
   DOG_RADIUS,
   DOG_STALK_SPEED,
-  DOG_TROT_SPEED,
 } from "../../data/tuning";
 
 /** Snap the dog's facing toward the nearest sheep (the "eye"). Called on prone. */
@@ -88,7 +87,7 @@ export function updateDog(state: GameState, dt: number): void {
   // ---- Movement target (trot / stalk) ----
   const targetX = input.mouseWorldX;
   const targetY = input.mouseWorldY;
-  const maxSpeed = dog.state === DOG_STALK ? DOG_STALK_SPEED : DOG_TROT_SPEED;
+  const maxSpeed = dog.state === DOG_STALK ? DOG_STALK_SPEED : state.dev.dogTrotSpeed;
 
   // Desired velocity with arrive (ease-out near the target).
   let desiredVX = 0;
