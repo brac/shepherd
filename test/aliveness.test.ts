@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createGameState, type GameState } from "../src/state/gameState";
-import { ACT_ALERT, ACT_GRAZE, ACT_REST } from "../src/state/gameState";
+import { ACT_ALERT, ACT_FOLLOW, ACT_GRAZE, ACT_REST } from "../src/state/gameState";
 import { level1 } from "../data/levels/level1";
 import { rebuildGrid } from "../src/sim/spatialHash";
 import { updatePanic } from "../src/sim/panic";
@@ -430,5 +430,98 @@ describe("Phase 2A M5 — terrain pooling", () => {
     // The flock's centre of mass closed a meaningful chunk of the gap to the camp — a slow
     // pool, not a snap (the pull is weak and resting sheep freeze partway).
     expect(d1).toBeLessThan(d0 - 45);
+  });
+});
+
+describe("Phase 2A M6 — lead-sheep FOLLOW + worn paths", () => {
+  it("a herded, moving flock chains into followers; a settled grazing flock does not", () => {
+    const countFollow = (st: GameState): number => {
+      let n = 0;
+      for (let i = 0; i < st.sheep.count; i++) if (st.sheep.activity[i] === ACT_FOLLOW) n++;
+      return n;
+    };
+
+    // Negative control: a flock left to settle into grazing barely chains at all — grazers
+    // amble below FOLLOW_MIN_SPEED, so FOLLOW is genuinely gated on movement, not always-on.
+    const idleState = createGameState(level1);
+    for (let t = 0; t < 2400; t++) {
+      parkDog(idleState);
+      silenceAmbient(idleState);
+      stepSim(idleState, DT);
+    }
+    expect(countFollow(idleState)).toBeLessThan(25);
+
+    // Positive: the dog sweeps just behind the flock, driving it forward as a moving body.
+    const state = createGameState(level1);
+    const s = state.sheep;
+    let maxFollow = 0;
+    for (let t = 0; t < 2500; t++) {
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < s.count; i++) {
+        cx += s.posX[i];
+        cy += s.posY[i];
+      }
+      cx /= s.count;
+      cy /= s.count;
+      state.input.mouseWorldX = cx - 180; // dog stays to the flock's left, pushing right
+      state.input.mouseWorldY = cy;
+      silenceAmbient(state);
+      stepSim(state, DT);
+      const f = countFollow(state);
+      if (f > maxFollow) maxFollow = f;
+    }
+    // A moving flock lines up single-file behind emergent leaders.
+    expect(maxFollow).toBeGreaterThan(30);
+  });
+
+  it("worn paths accumulate under traffic and fade once it stops", () => {
+    const state = createGameState(level1);
+    const s = state.sheep;
+    const tr = state.trample;
+
+    // Pin a knot of sheep onto one spot so a cell accrues traffic.
+    const X = 1000;
+    const Y = 600;
+    const cx = ((X - tr.minX) / tr.cellSize) | 0;
+    const cy = ((Y - tr.minY) / tr.cellSize) | 0;
+    const cell = cy * tr.cols + cx;
+    const pin = (): void => {
+      for (let i = 0; i < 30; i++) {
+        const jx = ((i % 5) - 2) * 3; // ±6px, all within a couple of 32px cells
+        const jy = (((i / 5) | 0) - 2) * 3;
+        s.posX[i] = X + jx;
+        s.posY[i] = Y + jy;
+        s.prevX[i] = X + jx;
+        s.prevY[i] = Y + jy;
+        s.velX[i] = 0;
+        s.velY[i] = 0;
+      }
+    };
+
+    for (let t = 0; t < 240; t++) {
+      pin(); // hold them on the spot for ~1s of deposits
+      parkDog(state);
+      silenceAmbient(state);
+      stepSim(state, DT);
+    }
+    const trodden = tr.val[cell];
+    expect(trodden).toBeGreaterThan(0.1); // the path is visibly worn
+
+    // Traffic stops: park the herd far away (re-pinned each step) and let the cell recover.
+    for (let t = 0; t < 1200; t++) {
+      for (let i = 0; i < s.count; i++) {
+        s.posX[i] = -100000;
+        s.posY[i] = -100000;
+        s.prevX[i] = -100000;
+        s.prevY[i] = -100000;
+        s.velX[i] = 0;
+        s.velY[i] = 0;
+      }
+      parkDog(state);
+      silenceAmbient(state);
+      stepSim(state, DT);
+    }
+    expect(tr.val[cell]).toBeLessThan(trodden); // ...and it fades back
   });
 });

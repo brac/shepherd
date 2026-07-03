@@ -11,10 +11,12 @@ import {
   FLAG_FLEEING,
   type GameState,
 } from "../state/gameState";
-import { BIRD_STARTLE_RADIUS } from "../../data/tuning";
+import { BIRD_STARTLE_RADIUS, TRAMPLE_MAX } from "../../data/tuning";
 
 const STARTLE_RING_COLOR = 0xffe066;
 const POOL_COLOR = 0x66d9ff; // soft blue — a terrain-pooling camp (M5)
+const TRAMPLE_COLOR = 0x8a6d3b; // muddy brown — worn ground (M6)
+const TRAMPLE_MIN_DRAW = 0.04; // skip near-empty cells so the heatmap stays cheap/legible
 // Activity palette (dot per sheep).
 const COL_GRAZE = 0x6ab04c; // green — calm/grazing
 const COL_ALERT = 0xffe066; // yellow — planted and staring at a disturbance
@@ -42,6 +44,20 @@ export class DebugView {
     if (!this.on) return;
     const g = this.g;
     g.clear();
+
+    // Worn-paths heatmap (M6): muddy tint per trodden cell, drawn first (under everything).
+    const tr = state.trample;
+    const tv = tr.val;
+    for (let k = 0; k < tv.length; k++) {
+      const v = tv[k];
+      if (v < TRAMPLE_MIN_DRAW) continue;
+      const cx = k % tr.cols;
+      const cy = (k / tr.cols) | 0;
+      g.rect(tr.minX + cx * tr.cellSize, tr.minY + cy * tr.cellSize, tr.cellSize, tr.cellSize).fill({
+        color: TRAMPLE_COLOR,
+        alpha: 0.55 * (v / TRAMPLE_MAX),
+      });
+    }
 
     // A dot per sheep, coloured by activity (fleeing overrides activity).
     const s = state.sheep;

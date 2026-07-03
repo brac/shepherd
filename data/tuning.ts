@@ -219,5 +219,22 @@ export const STRAY_AROUSAL = 0.1; // panic floor held while stranded (below flig
 export const W_POOL = 0.25; // pull weight toward the pool centre (below WANDER, << W_COHESION)
 export const POOL_PANIC_MAX = 0.1; // only sheep calmer than this pool (above it they're too edgy)
 
-// ---- Trample / worn paths (§2.6) ----
+// ---- Lead-sheep / FOLLOW (§2.4, M6) ----
+// A moving sheep with a flockmate in a tight forward cone chains in behind it: extra
+// cohesion+alignment toward that leader. The leader is emergent and rotates — no assigned
+// roles — so a moving flock threads single-file (95% follow within ~12 s; Gómez-Nava 2022,
+// Pillot 2011). Bonus: sheep line up through the gate. Weaker than the shipped boid terms.
+export const FOLLOW_RANGE = 60; // px: how far ahead a leader can be (< AWARENESS_RADIUS)
+export const FOLLOW_CONE = 0.82; // cos of the forward half-angle (~35°) that counts as "ahead"
+export const FOLLOW_MIN_SPEED = 30; // px/s: only a clearly-moving sheep follows (not a grazer)
+export const W_FOLLOW = 0.6; // extra cohesion+alignment weight toward the leader (below herding)
+
+// ---- Trample / worn paths (§2.6, M6) ----
+// A coarse traffic grid: every sheep (and the dog, ×4) deposits into the cell under it each
+// step, clamped to TRAMPLE_MAX, and every cell decays slowly (~100 s fade — a compressed
+// weeks-scale recovery, Mwendera 2010). PURELY VISUAL — no behaviour feedback (spec §2.6).
 export const TRAMPLE_CELL = 32; // coarse traffic-grid cell size (px)
+export const TRAMPLE_ADD = 0.6; // deposit rate under a sheep (per second)
+export const TRAMPLE_DOG_MUL = 4; // the dog packs a path harder than a sheep
+export const TRAMPLE_MAX = 1; // per-cell saturation ceiling
+export const TRAMPLE_DECAY = 0.01; // exponential fade rate per second (~100 s to 1/e)

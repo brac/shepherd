@@ -9,6 +9,7 @@ import { updateAmbient } from "./ambient";
 import { updatePanic } from "./panic";
 import { updateFlocking } from "./flocking";
 import { resolveOverlap } from "./overlap";
+import { updateTrample } from "./trample";
 import { updatePenning } from "./gate";
 import { CAMERA_EASE, CAMERA_LOOKAHEAD } from "../../data/tuning";
 
@@ -43,6 +44,9 @@ export function stepSim(state: GameState, dt: number): void {
 
   // 5b. Hard positional de-overlap so bodies bump instead of stacking.
   resolveOverlap(state);
+
+  // 6.5 Worn paths: accumulate traffic from the now-final positions (purely visual).
+  updateTrample(state, dt);
 
   // 6. Pen accounting + win.
   updatePenning(state);

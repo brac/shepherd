@@ -8,6 +8,7 @@
 
 import {
   ACT_ALERT,
+  ACT_FOLLOW,
   ACT_GRAZE,
   ACT_REST,
   DOG_PRONE,
@@ -29,6 +30,9 @@ import {
   FEAR_RADIUS_STALK,
   FEAR_RADIUS_TROT,
   FLEE_COHESION_DAMP,
+  FOLLOW_CONE,
+  FOLLOW_MIN_SPEED,
+  FOLLOW_RANGE,
   FUNNEL_RADIUS,
   FUNNEL_STRENGTH,
   GRAZE_CLUSTER_RADIUS,
@@ -66,6 +70,7 @@ import {
   W_COHESION,
   W_FEAR,
   W_GRAZE_COHESION,
+  W_FOLLOW,
   W_NOISE,
   W_REJOIN,
   W_SEPARATION,
@@ -186,6 +191,8 @@ export function updateFlocking(state: GameState, dt: number): void {
   const sep2 = SEPARATION_RADIUS * SEPARATION_RADIUS;
   const funnel2 = FUNNEL_RADIUS * FUNNEL_RADIUS;
   const cluster2 = GRAZE_CLUSTER_RADIUS * GRAZE_CLUSTER_RADIUS; // close-companion range (graze clusters)
+  const followRange2 = FOLLOW_RANGE * FOLLOW_RANGE; // lead-sheep cone reach (M6)
+  const followConeCos2 = FOLLOW_CONE * FOLLOW_CONE; // squared, to test the cone without a sqrt
 
   // Dog fear radius (state-dependent, bark balloons it) for the avoidance steering.
   const proneNow = dog.state === DOG_PRONE;
@@ -237,6 +244,12 @@ export function updateFlocking(state: GameState, dt: number): void {
     let sepX = 0;
     let sepY = 0;
     let clustN = 0; // close companions within GRAZE_CLUSTER_RADIUS (saturating graze cohesion)
+    // Nearest flockmate in the forward cone = the leader this sheep chains behind (M6 FOLLOW).
+    let leaderD2 = Infinity;
+    let leaderDX = 0;
+    let leaderDY = 0;
+    let leaderVX = 0;
+    let leaderVY = 0;
     let sawPanicNeighbor = false;
     // Track the most-panicked neighbour so an ALERT sheep can turn to face the disturbance.
     let hotPanic = 0;
@@ -262,6 +275,18 @@ export function updateFlocking(state: GameState, dt: number): void {
               alignY += s.velY[j] * vw;
               cohN++;
               if (d2 < cluster2) clustN++;
+              // Leader = the closest neighbour ahead of me (in my forward cone, within reach).
+              // proj = dot(fwd, offset); in-cone iff proj>0 and proj^2 > cos^2 * d2 (no sqrt).
+              if (hasFwd && d2 < followRange2 && d2 < leaderD2) {
+                const proj = fwdX * dx + fwdY * dy;
+                if (proj > 0 && proj * proj > followConeCos2 * d2) {
+                  leaderD2 = d2;
+                  leaderDX = dx;
+                  leaderDY = dy;
+                  leaderVX = s.velX[j];
+                  leaderVY = s.velY[j];
+                }
+              }
               if (d2 < sep2 && d2 > 1e-6) {
                 const d = Math.sqrt(d2);
                 const w = (1 - d / SEPARATION_RADIUS) / d;
@@ -535,6 +560,20 @@ export function updateFlocking(state: GameState, dt: number): void {
     } else if (alert) {
       maxSpeed = ALERT_SPEED; // below HEADING_MIN_SPEED, so it plants and the stare holds
       s.activity[i] = ACT_ALERT;
+    } else if (!fleeing && leaderD2 < Infinity && spd0 > FOLLOW_MIN_SPEED) {
+      // FOLLOW (M6): a clearly-moving sheep with a flockmate ahead chains in behind it —
+      // extra cohesion toward the leader + alignment to its heading. The leader is whoever
+      // happens to be in front; it rotates as the flock turns, so lines form single-file
+      // and thread the gate without any assigned roles. (Fleers already chain via alignment.)
+      const ll = Math.sqrt(leaderD2);
+      desX += (leaderDX / ll) * W_FOLLOW;
+      desY += (leaderDY / ll) * W_FOLLOW;
+      const lvl = Math.sqrt(leaderVX * leaderVX + leaderVY * leaderVY);
+      if (lvl > 1e-4) {
+        desX += (leaderVX / lvl) * W_FOLLOW;
+        desY += (leaderVY / lvl) * W_FOLLOW;
+      }
+      s.activity[i] = ACT_FOLLOW;
     } else {
       s.activity[i] = ACT_GRAZE; // walking normally (settling / fleeing owns its own motion)
     }
