@@ -4,11 +4,19 @@
 import { buildLevel, type Level, type LevelDef } from "./level";
 import { createRng, type Rng } from "../sim/rng";
 import { spawnSheep } from "../sim/spawn";
-import { AWARENESS_RADIUS } from "../../data/tuning";
+import { AWARENESS_RADIUS, MAX_ACTIVE_STARTLES, TRAMPLE_CELL } from "../../data/tuning";
 
 // Sheep flag bits (stored in the flags Uint8Array).
 export const FLAG_FLEEING = 1 << 0;
 export const FLAG_PENNED = 1 << 1;
+
+// Sheep activity state (Phase 2A). Orthogonal to panic/FLAG_FLEEING: activity governs
+// LOW-panic behavior (what a sheep does when the dog isn't pressuring it). Stored in the
+// `activity` Uint8Array. GRAZE is the zero default.
+export const ACT_GRAZE = 0;
+export const ACT_REST = 1;
+export const ACT_ALERT = 2;
+export const ACT_FOLLOW = 3;
 
 // Dog states.
 export const DOG_TROT = 0;
@@ -37,6 +45,17 @@ export interface SheepPool {
   corrY: Float32Array;
   bodyR: Float32Array; // per-sheep de-overlap half-size (seeded variation breaks the lattice)
   flags: Uint8Array;
+  // ---- Phase 2A aliveness ----
+  activity: Uint8Array; // ACT_GRAZE | ACT_REST | ACT_ALERT | ACT_FOLLOW
+  panicAge: Float32Array; // seconds since panic last crossed PANIC_PROPAGATE_MIN (wave front)
+  restTimer: Float32Array; // countdown to a GRAZE->REST transition, then rest/rise clock
+  strayTimer: Float32Array; // seconds spent stranded (drift-then-hurry rejoin ramp)
+  // Per-sheep traits: seeded once at spawn, never mutated (anti-uniformity).
+  skittish: Float32Array; // panic-injection sensitivity multiplier
+  speedMul: Float32Array; // max-speed multiplier
+  restBias: Float32Array; // laziness: scales rest-onset time
+  wanderMul: Float32Array; // graze-wander amount multiplier
+  idlePhase: Float32Array; // per-sheep phase offset for idle micro-motion (Phase 2B)
 }
 
 export interface DogStateObj {
@@ -79,6 +98,27 @@ export interface Grid {
   next: Int32Array; // next[i] = next sheep in the same cell, or -1
 }
 
+/** Fixed-capacity pool of ambient startle emitters (birds, gusts). Phase 2A §3. */
+export interface AmbientState {
+  startleX: Float32Array;
+  startleY: Float32Array;
+  startleMag: Float32Array; // peak panic injected at the emitter centre
+  startleTtl: Float32Array; // seconds of life remaining (<=0 = slot free)
+  birdCountdown: number; // seconds until the next bird flush
+  gustCountdown: number; // seconds until the next wind gust
+  windAlert: number; // decaying flock-wide alertness from the last gust
+}
+
+/** Coarse traffic grid for worn paths (Phase 2A §2.6). Purely visual; no sim feedback. */
+export interface TrampleGrid {
+  cellSize: number;
+  cols: number;
+  rows: number;
+  minX: number;
+  minY: number;
+  val: Float32Array; // per-cell accumulated, slowly-decaying traffic
+}
+
 export interface GameState {
   seed: number;
   rng: Rng;
@@ -92,6 +132,8 @@ export interface GameState {
   camera: CameraState;
   level: Level;
   grid: Grid;
+  ambient: AmbientState;
+  trample: TrampleGrid;
 }
 
 function polyBounds(poly: Float32Array): { minX: number; minY: number; maxX: number; maxY: number } {
@@ -131,7 +173,38 @@ function createSheepPool(count: number): SheepPool {
     corrY: new Float32Array(count),
     bodyR: new Float32Array(count),
     flags: new Uint8Array(count),
+    activity: new Uint8Array(count),
+    panicAge: new Float32Array(count),
+    restTimer: new Float32Array(count),
+    strayTimer: new Float32Array(count),
+    skittish: new Float32Array(count),
+    speedMul: new Float32Array(count),
+    restBias: new Float32Array(count),
+    wanderMul: new Float32Array(count),
+    idlePhase: new Float32Array(count),
   };
+}
+
+function createAmbient(): AmbientState {
+  return {
+    startleX: new Float32Array(MAX_ACTIVE_STARTLES),
+    startleY: new Float32Array(MAX_ACTIVE_STARTLES),
+    startleMag: new Float32Array(MAX_ACTIVE_STARTLES),
+    startleTtl: new Float32Array(MAX_ACTIVE_STARTLES),
+    birdCountdown: 0, // updateAmbient self-seeds on the first step (M1)
+    gustCountdown: 0,
+    windAlert: 0,
+  };
+}
+
+function createTrample(level: Level): TrampleGrid {
+  const cellSize = TRAMPLE_CELL;
+  const b = polyBounds(level.fieldPoly);
+  const minX = b.minX;
+  const minY = b.minY;
+  const cols = Math.ceil((b.maxX - b.minX) / cellSize) + 1;
+  const rows = Math.ceil((b.maxY - b.minY) / cellSize) + 1;
+  return { cellSize, cols, rows, minX, minY, val: new Float32Array(cols * rows) };
 }
 
 function createGrid(level: Level): Grid {
@@ -198,6 +271,8 @@ export function createGameState(def: LevelDef, seedOverride?: number): GameState
     },
     level,
     grid,
+    ambient: createAmbient(),
+    trample: createTrample(level),
   };
 
   spawnSheep(state);

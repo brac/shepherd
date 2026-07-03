@@ -11,7 +11,7 @@ import {
   Texture,
 } from "pixi.js";
 import type { GameState } from "../state/gameState";
-import { FLAG_PENNED } from "../state/gameState";
+import { ACT_ALERT, ACT_REST, FLAG_PENNED } from "../state/gameState";
 import { createRng, nextFloat, nextRange, type Rng } from "../sim/rng";
 import { lerp } from "./camera";
 import { SHEEP_RADIUS } from "../../data/tuning";
@@ -20,6 +20,10 @@ const TEXTURE_VARIANTS = 8;
 const CALM_TINT = 0xf2efe6; // off-white
 const PANIC_TINT = 0xd9584c; // muted red
 const PENNED_TINT = 0xbfe0a8; // soft green once safely penned
+// Phase 2A minimal activity read (full fleece treatment is Phase 2B).
+const REST_TINT = 0xcfccbf; // dimmer off-white for a lying sheep
+const ALERT_TINT = 0xe9e0a4; // faint warm cast for a head-up sheep
+const REST_SCALE_Y = 0.7; // a resting sheep reads flatter/lower
 
 /** Pre-bake a few irregular oval textures (view-only randomness; NOT the sim rng). */
 function bakeTextures(app: Application): Texture[] {
@@ -52,7 +56,7 @@ export class SheepView {
   constructor(app: Application, state: GameState) {
     const textures = bakeTextures(app);
     const pc = new ParticleContainer({
-      dynamicProperties: { position: true, rotation: true, color: true, scale: false },
+      dynamicProperties: { position: true, rotation: true, color: true, scale: true },
     });
     const rng = createRng(0x5eed);
     for (let i = 0; i < state.sheep.count; i++) {
@@ -81,8 +85,19 @@ export class SheepView {
       p.rotation = s.heading[i];
       if (s.flags[i] & FLAG_PENNED) {
         p.tint = PENNED_TINT;
+        p.scaleY = 1;
       } else {
-        p.tint = mixTint(CALM_TINT, PANIC_TINT, s.panic[i]);
+        const act = s.activity[i];
+        if (act === ACT_REST) {
+          p.tint = REST_TINT;
+          p.scaleY = REST_SCALE_Y;
+        } else if (act === ACT_ALERT) {
+          p.tint = mixTint(ALERT_TINT, PANIC_TINT, s.panic[i]);
+          p.scaleY = 1;
+        } else {
+          p.tint = mixTint(CALM_TINT, PANIC_TINT, s.panic[i]);
+          p.scaleY = 1;
+        }
       }
     }
   }

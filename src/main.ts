@@ -18,6 +18,11 @@ async function boot(): Promise<void> {
 
   attachInput(state, renderer.app.canvas, () => renderer.viewport());
 
+  // Phase 2A: 'D' toggles the debug overlay (attractors, startle rings, activity).
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "d" || e.key === "D") renderer.toggleDebug();
+  });
+
   startLoop(state, renderer.render);
 
   // Expose for quick console poking during tuning.

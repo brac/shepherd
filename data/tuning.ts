@@ -114,3 +114,33 @@ export const STALK_IDLE_MS = 130; // mouse still this long while held -> dog sto
 export const CAMERA_ZOOM = 0.9; // fixed zoom in Phase 1
 export const CAMERA_LOOKAHEAD = 0.35; // seconds of dog velocity to lead the view by
 export const CAMERA_EASE = 3.5; // follow ease rate (1/s)
+
+// =====================================================================================
+// Phase 2A — flock aliveness. All values grounded where possible in the sheep-behaviour
+// literature (see docs/PHASE_2A_PLAN.md). Spatial scale ≈ 11 px/m; durations are
+// game-compressed (~100x) but keep real proportions.
+// =====================================================================================
+
+// ---- Per-sheep traits (anti-uniformity, §4) ----
+// Seeded once at spawn, never mutated. Temperament is heritable & repeatable in real
+// sheep (r≈0.1–0.4; breeders select calm-vs-nervous lines — Merino temperament genetics
+// 2011). These make the flock read as individuals-in-a-mass rather than clones.
+export const SKITTISH_MIN = 0.6; // panic-injection multiplier floor (placid)
+export const SKITTISH_MAX = 1.6; // ceiling (jumpy); distribution skewed toward calm (u*u)
+export const SPEED_VAR_MIN = 0.9; // per-sheep max-speed multiplier
+export const SPEED_VAR_MAX = 1.1;
+export const REST_BIAS_MIN = 0.5; // laziness: scales rest-onset time (low = rests sooner)
+export const REST_BIAS_MAX = 1.5;
+export const WANDER_MUL_MIN = 0.6; // graze-wander amount multiplier
+export const WANDER_MUL_MAX = 1.4;
+
+// ---- Startle sources (§3) ----
+export const MAX_ACTIVE_STARTLES = 4; // fixed capacity for ambient startle emitters
+
+// ---- Rest (§1 REST) ----
+// Real rest bouts run 45–90 min (~2x a graze bout); compressed to seconds here.
+export const REST_ONSET_MIN = 20; // seconds calm before a sheep may lie down (min)
+export const REST_ONSET_MAX = 60; // (max); scaled per-sheep by restBias
+
+// ---- Trample / worn paths (§2.6) ----
+export const TRAMPLE_CELL = 32; // coarse traffic-grid cell size (px)

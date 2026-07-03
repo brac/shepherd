@@ -38,6 +38,16 @@ function hashState(state: GameState): string {
   mix(s.heading.buffer);
   mix(s.panic.buffer);
   mix(s.flags.buffer);
+  // Phase 2A state (activity, timers, per-sheep traits).
+  mix(s.activity.buffer);
+  mix(s.panicAge.buffer);
+  mix(s.restTimer.buffer);
+  mix(s.strayTimer.buffer);
+  mix(s.skittish.buffer);
+  mix(s.speedMul.buffer);
+  mix(s.restBias.buffer);
+  mix(s.wanderMul.buffer);
+  mix(s.idlePhase.buffer);
   // Fold in scalar state.
   const scalars = new Float64Array([
     state.dog.x,

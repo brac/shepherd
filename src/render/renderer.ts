@@ -8,6 +8,7 @@ import type { GameState } from "../state/gameState";
 import { FieldView } from "./fieldView";
 import { SheepView } from "./sheepView";
 import { DogView } from "./dogView";
+import { DebugView } from "./debugView";
 import { HudView } from "./hudView";
 import { lerp, ZOOM } from "./camera";
 
@@ -16,6 +17,7 @@ export class Renderer {
   private world!: Container;
   private sheepView!: SheepView;
   private dogView!: DogView;
+  private debugView!: DebugView;
   private hudView!: HudView;
 
   constructor() {
@@ -44,12 +46,20 @@ export class Renderer {
     this.dogView = new DogView();
     this.world.addChild(this.dogView.container);
 
+    this.debugView = new DebugView();
+    this.world.addChild(this.debugView.container);
+
     this.hudView = new HudView();
     this.app.stage.addChild(this.hudView.container);
   }
 
   viewport(): { width: number; height: number } {
     return { width: this.app.screen.width, height: this.app.screen.height };
+  }
+
+  /** Toggle the Phase 2A debug overlay (bound to 'D' in main.ts). */
+  toggleDebug(): void {
+    this.debugView.toggle();
   }
 
   render = (state: GameState, alpha: number): void => {
@@ -64,6 +74,7 @@ export class Renderer {
 
     this.sheepView.update(state, alpha);
     this.dogView.update(state, alpha);
+    this.debugView.update(state);
     this.hudView.update(state, w, h);
   };
 }
