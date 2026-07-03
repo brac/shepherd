@@ -4,7 +4,13 @@ import { level1 } from "../data/levels/level1";
 import { rebuildGrid } from "../src/sim/spatialHash";
 import { updatePanic } from "../src/sim/panic";
 import { stepSim } from "../src/sim/step";
-import { DT, BIRD_STARTLE_TTL, PANIC_PROPAGATE_MIN, WAVE_SPEED } from "../data/tuning";
+import {
+  DT,
+  BIRD_STARTLE_TTL,
+  GRAZE_CLUSTER_RADIUS,
+  PANIC_PROPAGATE_MIN,
+  WAVE_SPEED,
+} from "../data/tuning";
 
 function parkDog(state: GameState): void {
   state.dog.x = -100000;
@@ -173,5 +179,83 @@ describe("Phase 2A M2 — anti-uniformity traits", () => {
     expect(s.panic[1]).toBeGreaterThan(0);
     // The jumpy sheep took more — in proportion to its skittishness (equal decay from 0).
     expect(s.panic[1]).toBeGreaterThan(s.panic[0] * 1.5);
+  });
+});
+
+describe("Phase 2A M3 — grazing clusters", () => {
+  it("an idle flock forms uneven sub-groups that reshuffle over time", () => {
+    const state = createGameState({ ...level1, sheepCount: 300 });
+    const s = state.sheep;
+
+    const R2 = GRAZE_CLUSTER_RADIUS * GRAZE_CLUSTER_RADIUS;
+    // Per-sheep local density = close companions within the cluster radius (brute force).
+    const density = (): Float64Array => {
+      const d = new Float64Array(s.count);
+      for (let i = 0; i < s.count; i++) {
+        let n = 0;
+        for (let j = 0; j < s.count; j++) {
+          if (i === j) continue;
+          const dx = s.posX[j] - s.posX[i];
+          const dy = s.posY[j] - s.posY[i];
+          if (dx * dx + dy * dy < R2) n++;
+        }
+        d[i] = n;
+      }
+      return d;
+    };
+    const cov = (d: Float64Array): number => {
+      let sum = 0;
+      for (const v of d) sum += v;
+      const mean = sum / d.length;
+      let ss = 0;
+      for (const v of d) ss += (v - mean) * (v - mean);
+      return Math.sqrt(ss / d.length) / mean; // coefficient of variation
+    };
+    const corr = (a: Float64Array, b: Float64Array): number => {
+      const n = a.length;
+      let sa = 0;
+      let sb = 0;
+      for (let i = 0; i < n; i++) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / n;
+      const mb = sb / n;
+      let num = 0;
+      let da = 0;
+      let db = 0;
+      for (let i = 0; i < n; i++) {
+        const x = a[i] - ma;
+        const y = b[i] - mb;
+        num += x * y;
+        da += x * x;
+        db += y * y;
+      }
+      return num / Math.sqrt(da * db);
+    };
+
+    const idle = (steps: number): void => {
+      for (let t = 0; t < steps; t++) {
+        state.dog.x = -100000;
+        state.dog.y = -100000;
+        state.input.mouseWorldX = -100000;
+        state.input.mouseWorldY = -100000;
+        stepSim(state, DT);
+      }
+    };
+
+    idle(6000); // ~25 s: let clusters emerge from the uniform spawn blob
+    const dA = density();
+    idle(3600); // ~15 s more
+    const dB = density();
+
+    // The flock hasn't dispersed into singletons (still grouped)...
+    let sum = 0;
+    for (const v of dA) sum += v;
+    expect(sum / dA.length).toBeGreaterThan(3);
+    // ...density is genuinely lumpy (sub-groups), well above a uniform/random spread...
+    expect(cov(dA)).toBeGreaterThan(0.33);
+    // ...and the clumps reshuffle rather than freezing into fixed groups.
+    expect(corr(dA, dB)).toBeLessThan(0.85);
   });
 });

@@ -30,8 +30,10 @@ import {
   FLEE_COHESION_DAMP,
   FUNNEL_RADIUS,
   FUNNEL_STRENGTH,
+  GRAZE_CLUSTER_RADIUS,
   GRAZE_MAX_DWELL,
   GRAZE_MIN_DWELL,
+  GRAZE_SATISFIED_N,
   GRAZE_TURN,
   HEADING_EASE,
   HEADING_MIN_SPEED,
@@ -52,6 +54,7 @@ import {
   W_ALIGNMENT,
   W_COHESION,
   W_FEAR,
+  W_GRAZE_COHESION,
   W_NOISE,
   W_REJOIN,
   W_SEPARATION,
@@ -171,6 +174,7 @@ export function updateFlocking(state: GameState, dt: number): void {
   const aware2 = AWARENESS_RADIUS * AWARENESS_RADIUS;
   const sep2 = SEPARATION_RADIUS * SEPARATION_RADIUS;
   const funnel2 = FUNNEL_RADIUS * FUNNEL_RADIUS;
+  const cluster2 = GRAZE_CLUSTER_RADIUS * GRAZE_CLUSTER_RADIUS; // close-companion range (graze clusters)
 
   // Dog fear radius (state-dependent, bark balloons it) for the avoidance steering.
   const proneNow = dog.state === DOG_PRONE;
@@ -221,6 +225,7 @@ export function updateFlocking(state: GameState, dt: number): void {
     let alignY = 0;
     let sepX = 0;
     let sepY = 0;
+    let clustN = 0; // close companions within GRAZE_CLUSTER_RADIUS (saturating graze cohesion)
     let sawPanicNeighbor = false;
     // Track the most-panicked neighbour so an ALERT sheep can turn to face the disturbance.
     let hotPanic = 0;
@@ -245,6 +250,7 @@ export function updateFlocking(state: GameState, dt: number): void {
               alignX += s.velX[j] * vw;
               alignY += s.velY[j] * vw;
               cohN++;
+              if (d2 < cluster2) clustN++;
               if (d2 < sep2 && d2 > 1e-6) {
                 const d = Math.sqrt(d2);
                 const w = (1 - d / SEPARATION_RADIUS) / d;
@@ -303,27 +309,49 @@ export function updateFlocking(state: GameState, dt: number): void {
     const toDY = dog.y - py;
     const dogD2 = toDX * toDX + toDY * toDY;
 
+    // Calm = grazing conditions (needed up here so cohesion can switch to the graze mode).
+    // A stranded sheep (cohN < REJOIN_MIN) is never calm — the rejoin below owns it.
+    const calm =
+      !fleeing &&
+      panicI < GRAZE_PANIC_EPS &&
+      dogD2 > aware2 &&
+      !sawPanicNeighbor &&
+      !gustAlert &&
+      cohN >= REJOIN_MIN_NEIGHBORS;
+
     let desX = 0;
     let desY = 0;
 
     // ---- Cohesion / alignment (local only) ----
-    // Cohesion tightens with panic (selfish herd: a pressured flock bunches and rounds
-    // up rather than shearing into singletons).
     if (cohWsum > 0) {
-      const cohBase = fleeing ? W_COHESION * FLEE_COHESION_DAMP : W_COHESION;
-      const cw = cohBase * (1 + PANIC_COHESION_GAIN * panicI);
       const aw = fleeing ? W_ALIGNMENT * FLEE_COHESION_DAMP : W_ALIGNMENT;
-      const dxc = cohX / cohWsum - px;
-      const dyc = cohY / cohWsum - py;
-      const l = Math.sqrt(dxc * dxc + dyc * dyc);
-      if (l > 1e-4) {
-        desX += cw * (dxc / l);
-        desY += cw * (dyc / l);
-      }
       const al = Math.sqrt(alignX * alignX + alignY * alignY);
       if (al > 1e-4) {
         desX += aw * (alignX / al);
         desY += aw * (alignY / al);
+      }
+      const dxc = cohX / cohWsum - px;
+      const dyc = cohY / cohWsum - py;
+      const l = Math.sqrt(dxc * dxc + dyc * dyc);
+      if (l > 1e-4) {
+        let cw: number;
+        if (calm) {
+          // SATURATING graze cohesion (M3): the pull weakens as close companions approach
+          // GRAZE_SATISFIED_N and vanishes once satisfied, so a dense clump drifts free while
+          // sparse grazers re-gather — sub-groups form and dissolve, no group ids. Weaker than
+          // the herding cohesion below; topological rejoin still catches true strays.
+          const need = (GRAZE_SATISFIED_N - clustN) / GRAZE_SATISFIED_N; // 1 alone, <=0 satisfied
+          cw = need > 0 ? W_GRAZE_COHESION * need : 0;
+        } else {
+          // Herding cohesion tightens with panic (selfish herd: a pressured flock bunches and
+          // rounds up rather than shearing into singletons).
+          const cohBase = fleeing ? W_COHESION * FLEE_COHESION_DAMP : W_COHESION;
+          cw = cohBase * (1 + PANIC_COHESION_GAIN * panicI);
+        }
+        if (cw > 0) {
+          desX += cw * (dxc / l);
+          desY += cw * (dyc / l);
+        }
       }
     }
 
@@ -384,15 +412,9 @@ export function updateFlocking(state: GameState, dt: number): void {
 
     // ---- Activity: GRAZE (calm) / ALERT (a disturbance passing) ----
     // A stranded sheep is anxious, not content — it hurries back at walk speed rather
-    // than grazing slowly, so the rejoin pull isn't throttled to graze speed.
+    // than grazing slowly, so the rejoin pull isn't throttled to graze speed. (`calm` was
+    // computed above, before cohesion, so grazing sheep use the saturating graze cohesion.)
     let maxSpeed = fleeing ? SHEEP_FLEE_SPEED : SHEEP_WALK_SPEED;
-    const calm =
-      !fleeing &&
-      panicI < GRAZE_PANIC_EPS &&
-      dogD2 > aware2 &&
-      !sawPanicNeighbor &&
-      !gustAlert &&
-      cohN >= REJOIN_MIN_NEIGHBORS;
     // ALERT: a passing-disturbance beat, ONLY when the dog isn't actively pressuring this
     // sheep (dog beyond its fear reach) and the sheep is only lightly disturbed — own panic
     // in a thin low band (the wave brushing past), or a gust. It plants and stares (heading

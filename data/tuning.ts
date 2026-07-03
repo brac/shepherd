@@ -178,6 +178,16 @@ export const ALERT_PANIC_MAX = 0.25; // ...and ceiling: a more-panicked sheep is
 // off instead of freezing en masse (which read as stubbornness after the dog pushed them).
 export const ALERT_SPEED = 5; // max speed while alert (< HEADING_MIN_SPEED: plants + stares)
 
+// ---- Grazing clusters (§2.3, M3) ----
+// Idle grazing cohesion SATURATES with local density: a sheep with GRAZE_SATISFIED_N close
+// companions feels no pull and drifts free; a sparser grazer re-gathers. Combined with the
+// per-sheep wanderMul desync, sub-groups form, loiter, and dissolve over tens of seconds
+// (fission–fusion; most-common sub-group ~12 sheep — Ferdous/Sankey 2023). No group ids.
+export const GRAZE_CLUSTER_RADIUS = 55; // "close companion" range, ≈5 m at 11 px/m
+export const GRAZE_SATISFIED_N = 8; // close companions at which graze cohesion hits zero
+export const W_GRAZE_COHESION = 0.35; // max graze-cohesion weight (when alone); below wander,
+// far below the herding W_COHESION 0.9 — aliveness never fights herding. THE feel dial of M3.
+
 // ---- Rest (§1 REST) ----
 // Real rest bouts run 45–90 min (~2x a graze bout); compressed to seconds here.
 export const REST_ONSET_MIN = 20; // seconds calm before a sheep may lie down (min)
