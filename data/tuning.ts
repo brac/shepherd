@@ -227,7 +227,7 @@ export const POOL_PANIC_MAX = 0.1; // only sheep calmer than this pool (above it
 export const FOLLOW_RANGE = 60; // px: how far ahead a leader can be (< AWARENESS_RADIUS)
 export const FOLLOW_CONE = 0.82; // cos of the forward half-angle (~35°) that counts as "ahead"
 export const FOLLOW_MIN_SPEED = 30; // px/s: only a clearly-moving sheep follows (not a grazer)
-export const W_FOLLOW = 0.6; // extra cohesion+alignment weight toward the leader (below herding)
+export const W_FOLLOW = 0.9; // extra cohesion+alignment weight toward the leader (single-file pull)
 
 // ---- Trample / worn paths (§2.6, M6) ----
 // A coarse traffic grid: every sheep (and the dog, ×4) deposits into the cell under it each
