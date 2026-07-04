@@ -11,10 +11,15 @@ import { ACT_ALERT, ACT_REST, FLAG_PENNED } from "../state/gameState";
 import { createRng, nextFloat, nextRange, type Rng } from "../sim/rng";
 import { lerp } from "./camera";
 import { optionalTexture } from "./assets";
-import { SHEEP_RADIUS } from "../../data/tuning";
+import { SHEEP_RADIUS, SHEEP_FLEE_SPEED } from "../../data/tuning";
 import {
   BLACK_SHEEP_CHANCE,
   BLACK_SHEEP_TINT,
+  BOUNCE_AMP,
+  BOUNCE_FREQ,
+  BREATH_AMP,
+  BREATH_PERIOD_MAX,
+  BREATH_PERIOD_MIN,
   BROWN_SHEEP_CHANCE,
   BROWN_SHEEP_TINT,
   DIRT_MAX,
@@ -26,7 +31,12 @@ import {
   FLEECE_SIZE_MAX,
   FLEECE_SIZE_MIN,
   FLEECE_WOOL_DEPTH,
+  REST_BREATH_DEPTH,
+  REST_BREATH_SLOW,
+  SQUASH_GAIN,
+  SQUASH_LAT,
   SUN_AZIMUTH,
+  WOBBLE_AMP,
 } from "../../data/visuals";
 
 const TEXTURE_VARIANTS = 8;
@@ -42,6 +52,8 @@ export class SheepView {
   private readonly particles: Particle[] = [];
   private readonly fleeceTint: Uint32Array; // per-sheep base fleece colour (shade + dirt)
   private readonly baseScale: Float32Array; // per-sheep display scale (texture→world × size spread)
+  private readonly breathPhase: Float32Array; // per-sheep phase offset for breathing/bob (anti-sync)
+  private readonly breathRate: Float32Array; // per-sheep breathing angular rate (rad/s)
 
   constructor(state: GameState) {
     const asset = optionalTexture("fleece");
@@ -57,11 +69,15 @@ export class SheepView {
     const n = state.sheep.count;
     this.fleeceTint = new Uint32Array(n);
     this.baseScale = new Float32Array(n);
+    this.breathPhase = new Float32Array(n);
+    this.breathRate = new Float32Array(n);
 
     for (let i = 0; i < n; i++) {
       const tex = textures[(nextFloat(rng) * textures.length) | 0];
       this.baseScale[i] = texScale * nextRange(rng, FLEECE_SIZE_MIN, FLEECE_SIZE_MAX);
       this.fleeceTint[i] = pickFleeceTint(rng);
+      this.breathPhase[i] = nextRange(rng, 0, Math.PI * 2);
+      this.breathRate[i] = (Math.PI * 2) / nextRange(rng, BREATH_PERIOD_MIN, BREATH_PERIOD_MAX);
       const p = new Particle({
         texture: tex,
         x: state.sheep.posX[i],
@@ -81,29 +97,53 @@ export class SheepView {
 
   update(state: GameState, alpha: number): void {
     const s = state.sheep;
+    const t = state.simTime; // drives the breathing/bob clocks (advances at the sim rate)
     for (let i = 0; i < s.count; i++) {
       const p = this.particles[i];
       p.x = lerp(s.prevX[i], s.posX[i], alpha);
       p.y = lerp(s.prevY[i], s.posY[i], alpha);
-      p.rotation = s.heading[i];
+
       const base = this.baseScale[i];
-      p.scaleX = base;
       const fleece = this.fleeceTint[i];
-      if (s.flags[i] & FLAG_PENNED) {
+      const flags = s.flags[i];
+      const act = s.activity[i];
+      const resting = !(flags & FLAG_PENNED) && act === ACT_REST;
+      const ph = this.breathPhase[i];
+      const rate = this.breathRate[i];
+
+      // ---- Tint (per-sheep fleece modulated by activity/panic) ----
+      if (flags & FLAG_PENNED) {
         p.tint = mixTint(fleece, PENNED_TINT, 0.7);
-        p.scaleY = base;
+      } else if (resting) {
+        p.tint = mixTint(fleece, 0x000000, REST_DIM);
+      } else if (act === ACT_ALERT) {
+        p.tint = mixTint(mixTint(fleece, ALERT_TINT, 0.25), PANIC_TINT, s.panic[i]);
       } else {
-        const act = s.activity[i];
-        if (act === ACT_REST) {
-          p.tint = mixTint(fleece, 0x000000, REST_DIM);
-          p.scaleY = base * REST_SCALE_Y;
-        } else if (act === ACT_ALERT) {
-          p.tint = mixTint(mixTint(fleece, ALERT_TINT, 0.25), PANIC_TINT, s.panic[i]);
-          p.scaleY = base;
-        } else {
-          p.tint = mixTint(fleece, PANIC_TINT, s.panic[i]);
-          p.scaleY = base;
-        }
+        p.tint = mixTint(fleece, PANIC_TINT, s.panic[i]);
+      }
+
+      // ---- Soft-material motion (Pillar 3) ----
+      // scaleX = along heading (fleece is baked long on x, and rotation = heading), scaleY = across.
+      if (resting) {
+        // Deep, slow breathing; flattened; no bounce/wobble — a settled, planted mass.
+        const b = 1 + BREATH_AMP * REST_BREATH_DEPTH * Math.sin(ph + t * rate * REST_BREATH_SLOW);
+        p.scaleX = base * b;
+        p.scaleY = base * REST_SCALE_Y * b;
+        p.rotation = s.heading[i];
+      } else {
+        const vx = s.velX[i];
+        const vy = s.velY[i];
+        const spd = Math.sqrt(vx * vx + vy * vy);
+        const sf = spd < SHEEP_FLEE_SPEED ? spd / SHEEP_FLEE_SPEED : 1; // 0 idle .. 1 full flee
+        const idle = 1 - sf;
+        const bob = 1 + BOUNCE_AMP * sf * Math.sin(ph + t * BOUNCE_FREQ);
+        const breath = 1 + BREATH_AMP * idle * Math.sin(ph + t * rate);
+        // Stretch along the heading, squash across → a soft bounding mass at speed.
+        p.scaleX = base * (1 + SQUASH_GAIN * sf) * bob * breath;
+        p.scaleY = base * (1 - SQUASH_LAT * sf) * breath;
+        // Fleece-wobble rotation reads as jiggle (kept aligned with the body so it stays on
+        // its shadow — the positional-lag variant would detach the two; that idea is cut).
+        p.rotation = s.heading[i] + WOBBLE_AMP * sf * Math.sin(ph + t * BOUNCE_FREQ * 0.5);
       }
     }
   }

@@ -43,11 +43,19 @@ export const GRASS_PATCH_LIGHT = 0x8bb35c;
 export const WORN_TINT = 0x9c8b63; // flattened/discoloured grass where traffic has passed
 
 // ---- Soft-material motion (Pillar 3, M3) — all applied per-sheep phase-offset ----
+// A moving sheep reads as a soft bounding MASS, not a rigid oval sliding: stretch along the
+// heading + squash across, a gentle bounding bob, and a fleece-wobble rotation. Idle sheep
+// breathe. Every periodic term takes a per-sheep phase so the flock shimmers, never in sync.
 export const SQUASH_GAIN = 0.35; // stretch-along-heading at full flee speed (fraction)
-export const JIGGLE_LAG = 0.12; // fraction the rendered fleece lags the body (wool settles behind)
+export const SQUASH_LAT = 0.18; // squash-across-heading at full flee speed (fraction)
+export const BOUNCE_AMP = 0.05; // bounding-gait length pulse at speed
+export const BOUNCE_FREQ = 13; // rad/s of the bounding bob (~2 Hz stride)
+export const WOBBLE_AMP = 0.06; // radians of fleece-wobble rotation at speed (the "jiggle" read)
 export const BREATH_AMP = 0.02; // idle breathing scale pulse (±2%)
 export const BREATH_PERIOD_MIN = 2.6; // seconds per breath (per-sheep, seeded)
 export const BREATH_PERIOD_MAX = 4.2;
+export const REST_BREATH_DEPTH = 2.2; // a lying sheep breathes deeper than a grazing one
+export const REST_BREATH_SLOW = 0.55; // ...and slower
 
 // ---- World mood / clouds (M5) ----
 export const CLOUD_COUNT = 3; // drifting soft shadow patches
