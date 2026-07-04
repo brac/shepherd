@@ -28,6 +28,13 @@ export const BROWN_SHEEP_TINT = 0x8a6f52;
 export const BLACK_SHEEP_TINT = 0x4a4640;
 export const DIRT_TINT = 0xcdbfa6; // multiplied under a sheep for a grubby underside
 export const DIRT_MAX = 0.35; // max per-sheep dirt mix (0 = clean, 1 = full DIRT_TINT)
+export const FLEECE_SIZE_MIN = 0.88; // per-sheep body-size spread (visual only)
+export const FLEECE_SIZE_MAX = 1.12;
+// Fleece texture bake (procedural fallback): woolly value noise + a domed directional shade
+// from the sun vector + a feathered alpha edge (the soft edge is what blends overlapping sheep).
+export const FLEECE_WOOL_DEPTH = 0.16; // how much the noise darkens the wool valleys
+export const FLEECE_SHADE_GAIN = 0.22; // rim brightness toward the sun (gentle domed volume)
+export const FLEECE_EDGE_FEATHER = 0.3; // fraction of the silhouette used for the soft alpha edge
 
 // ---- Grass / field (M4) ----
 export const GRASS_BASE = 0x7fa650; // matches the current flat fill so M0 is unchanged

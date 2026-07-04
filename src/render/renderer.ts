@@ -59,7 +59,7 @@ export class Renderer {
     this.shadowView = new ShadowView(state); // 4. soft contact shadows
     this.world.addChild(this.shadowView.container);
 
-    this.sheepView = new SheepView(this.app, state); // 5. sheep bodies
+    this.sheepView = new SheepView(state); // 5. sheep bodies
     this.world.addChild(this.sheepView.container);
 
     this.dogView = new DogView(); // 6. dog
