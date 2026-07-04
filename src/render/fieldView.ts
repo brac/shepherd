@@ -3,9 +3,9 @@
 
 import { Container, Graphics } from "pixi.js";
 import type { Level } from "../state/level";
+import { OBSTACLE_SHADOW_ALPHA, OBSTACLE_SHADOW_LEN, SHADOW_TINT, SUN_AZIMUTH } from "../../data/visuals";
 
-const GRASS = 0x7fa650;
-const GRASS_EDGE = 0x5c7d38;
+const GRASS_EDGE = 0x4a6630;
 const FENCE = 0x6b4a2f;
 const GATE_MARK = 0xe8d9a0;
 const ROCK = 0x8a8577;
@@ -17,19 +17,30 @@ export class FieldView {
   constructor(level: Level) {
     const c = new Container();
 
-    // Field fill + boundary.
+    // Field boundary only — GroundView owns the grass fill now (below this layer).
     const field = new Graphics();
     const fp = level.fieldPoly;
     const pts: number[] = [];
     for (let i = 0; i < fp.length; i++) pts.push(fp[i]);
-    field.poly(pts).fill({ color: GRASS }).stroke({ width: 6, color: GRASS_EDGE });
+    field.poly(pts).stroke({ width: 4, color: GRASS_EDGE, alpha: 0.6 });
     c.addChild(field);
+
+    // A tall obstacle casts a soft shadow, offset by the shared sun (baked; matches fleece).
+    const sox = -Math.cos(SUN_AZIMUTH) * OBSTACLE_SHADOW_LEN;
+    const soy = -Math.sin(SUN_AZIMUTH) * OBSTACLE_SHADOW_LEN;
 
     // Obstacles (block sheep and dog).
     for (const poly of level.obstacles) {
-      const g = new Graphics();
       const op: number[] = [];
       for (let i = 0; i < poly.length; i++) op.push(poly[i]);
+      const shadow = new Graphics();
+      const sp: number[] = [];
+      for (let i = 0; i < poly.length; i += 2) {
+        sp.push(poly[i] + sox, poly[i + 1] + soy);
+      }
+      shadow.poly(sp).fill({ color: SHADOW_TINT, alpha: OBSTACLE_SHADOW_ALPHA });
+      c.addChild(shadow);
+      const g = new Graphics();
       g.poly(op).fill({ color: ROCK }).stroke({ width: 4, color: ROCK_EDGE });
       c.addChild(g);
     }

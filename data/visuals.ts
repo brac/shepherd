@@ -16,6 +16,8 @@ export const SHADOW_REST_ALPHA = 0.34; // a lying sheep sits lower → tighter, 
 export const SHADOW_SCALE = 1.6; // shadow blob radius relative to SHEEP_RADIUS (a soft pool under the body)
 export const SHADOW_REST_SCALE = 0.8; // a resting sheep's shadow pulls in tighter (closer contact)
 export const SHADOW_TINT = 0x1b2913; // dark warm-green (reads more natural on grass than pure black)
+export const OBSTACLE_SHADOW_LEN = 16; // px a tall obstacle (boulder) casts its shadow
+export const OBSTACLE_SHADOW_ALPHA = 0.3;
 
 // ---- Fleece palette (Pillar 2 / anti-uniformity, M2) ----
 // Off-white ramp skewed toward cream, plus a rare-sheep table. Real flocks are not uniform
@@ -37,10 +39,21 @@ export const FLEECE_SHADE_GAIN = 0.22; // rim brightness toward the sun (gentle 
 export const FLEECE_EDGE_FEATHER = 0.3; // fraction of the silhouette used for the soft alpha edge
 
 // ---- Grass / field (M4) ----
-export const GRASS_BASE = 0x7fa650; // matches the current flat fill so M0 is unchanged
-export const GRASS_PATCH_DARK = 0x6f9646; // large-scale value variation (low-frequency octave)
-export const GRASS_PATCH_LIGHT = 0x8bb35c;
-export const WORN_TINT = 0x9c8b63; // flattened/discoloured grass where traffic has passed
+// GroundView prefers an external grass photo (this list, first present) and falls back to a
+// procedural noise ground. Names cover the canonical "grass" drop-in slot + the provided art.
+export const GRASS_ASSET_NAMES = ["grass", "gen_1", "gen_2"];
+export const GRASS_BASE = 0x6f9440; // procedural-fallback base green
+export const GRASS_PATCH_DARK = 0x5f8438; // large-scale value variation (low-frequency octave)
+export const GRASS_PATCH_LIGHT = 0x88a955;
+export const GRASS_PATCH_ALPHA = 0.5; // strength of the procedural patch overlay
+export const VIGNETTE_ALPHA = 0.22; // soft dark frame toward the field edge (both paths)
+export const WORN_TINT = 0x83714c; // flattened/discoloured grass where traffic has passed
+export const WORN_MAX_ALPHA = 0.55; // opacity of a fully-worn cell
+export const WORN_REFRESH = 0.25; // seconds between worn-path texture rebuilds (~4 Hz)
+// Wind on grass: a faint bright streak layer that scrolls with the wind and only shows during
+// a gust (alpha tracks ambient.windAlert), so 2A wind-startles visibly brush the field.
+export const WIND_STREAK_ALPHA = 0.5; // peak opacity of the wind layer at full windAlert
+export const WIND_SCROLL = 26; // px/s the wind streaks slide across the field
 
 // ---- Soft-material motion (Pillar 3, M3) — all applied per-sheep phase-offset ----
 // A moving sheep reads as a soft bounding MASS, not a rigid oval sliding: stretch along the

@@ -20,6 +20,8 @@ import { lerp, ZOOM } from "./camera";
 export class Renderer {
   readonly app: Application;
   private world!: Container;
+  private groundView!: GroundView;
+  private wornPathsView!: WornPathsView;
   private shadowView!: ShadowView;
   private sheepView!: SheepView;
   private dogView!: DogView;
@@ -47,11 +49,11 @@ export class Renderer {
     this.app.stage.addChild(this.world);
 
     // World layers, bottom → top (z-order is the render contract; see PHASE_2B_PLAN.md).
-    const groundView = new GroundView(); // 1. grass (M4; M0 stub — FieldView still fills grass)
-    this.world.addChild(groundView.container);
+    this.groundView = new GroundView(state.level); // 1. grass (photo or procedural) + vignette + wind
+    this.world.addChild(this.groundView.container);
 
-    const wornPathsView = new WornPathsView(); // 2. trodden ground (M4 stub)
-    this.world.addChild(wornPathsView.container);
+    this.wornPathsView = new WornPathsView(state); // 2. trodden-ground heatmap from the trample grid
+    this.world.addChild(this.wornPathsView.container);
 
     const fieldView = new FieldView(state.level); // 3. fence, gate, obstacles
     this.world.addChild(fieldView.container);
@@ -94,6 +96,8 @@ export class Renderer {
     this.world.x = w / 2 - camX * ZOOM;
     this.world.y = h / 2 - camY * ZOOM;
 
+    this.groundView.update(state);
+    this.wornPathsView.update(state);
     this.shadowView.update(state, alpha);
     this.sheepView.update(state, alpha);
     this.dogView.update(state, alpha);
