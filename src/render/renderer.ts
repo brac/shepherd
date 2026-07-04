@@ -5,11 +5,16 @@
 
 import { Application, Container } from "pixi.js";
 import type { GameState } from "../state/gameState";
+import { GroundView } from "./groundView";
+import { WornPathsView } from "./wornPathsView";
 import { FieldView } from "./fieldView";
+import { ShadowView } from "./shadowView";
 import { SheepView } from "./sheepView";
 import { DogView } from "./dogView";
+import { CloudShadowView } from "./cloudShadowView";
 import { DebugView } from "./debugView";
 import { HudView } from "./hudView";
+import { loadOptionalTextures } from "./assets";
 import { lerp, ZOOM } from "./camera";
 
 export class Renderer {
@@ -34,19 +39,35 @@ export class Renderer {
     });
     mount.appendChild(this.app.canvas);
 
+    // Optional external textures (art drop-in). Absence is the norm → procedural fallback.
+    await loadOptionalTextures();
+
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
-    const fieldView = new FieldView(state.level);
+    // World layers, bottom → top (z-order is the render contract; see PHASE_2B_PLAN.md).
+    const groundView = new GroundView(); // 1. grass (M4; M0 stub — FieldView still fills grass)
+    this.world.addChild(groundView.container);
+
+    const wornPathsView = new WornPathsView(); // 2. trodden ground (M4 stub)
+    this.world.addChild(wornPathsView.container);
+
+    const fieldView = new FieldView(state.level); // 3. fence, gate, obstacles
     this.world.addChild(fieldView.container);
 
-    this.sheepView = new SheepView(this.app, state);
+    const shadowView = new ShadowView(); // 4. contact shadows (M1 stub)
+    this.world.addChild(shadowView.container);
+
+    this.sheepView = new SheepView(this.app, state); // 5. sheep bodies
     this.world.addChild(this.sheepView.container);
 
-    this.dogView = new DogView();
+    this.dogView = new DogView(); // 6. dog
     this.world.addChild(this.dogView.container);
 
-    this.debugView = new DebugView();
+    const cloudShadowView = new CloudShadowView(); // 7. drifting cloud shadows (M5 stub)
+    this.world.addChild(cloudShadowView.container);
+
+    this.debugView = new DebugView(); // 8. debug overlay (D)
     this.world.addChild(this.debugView.container);
 
     this.hudView = new HudView();

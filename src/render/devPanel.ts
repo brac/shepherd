@@ -4,6 +4,8 @@
 
 import type { GameState } from "../state/gameState";
 import { DOG_TROT_SPEED } from "../../data/tuning";
+import { SUN_AZIMUTH } from "../../data/visuals";
+import { visuals } from "./visualsRuntime";
 
 export class DevPanel {
   private readonly el: HTMLDivElement;
@@ -44,6 +46,16 @@ export class DevPanel {
       () => this.state.dev.dogTrotSpeed,
       (v) => (this.state.dev.dogTrotSpeed = v),
       DOG_TROT_SPEED,
+    );
+    // Phase 2B render knob (view-only; consumed by shadows/fleece/grass from M1 on).
+    this.addSlider(
+      "Sun azimuth",
+      -Math.PI,
+      Math.PI,
+      0.05,
+      () => visuals.sunAzimuth,
+      (v) => (visuals.sunAzimuth = v),
+      SUN_AZIMUTH,
     );
   }
 
