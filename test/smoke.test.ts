@@ -4,7 +4,7 @@ import { level1 } from "../data/levels/level1";
 import { level2 } from "../data/levels/level2";
 import { stepSim } from "../src/sim/step";
 import { pointInPolygon } from "../src/sim/geometry";
-import { DT, SHEEP_COLLIDE_DIST } from "../data/tuning";
+import { DT, SIM_HZ, SHEEP_COLLIDE_DIST } from "../data/tuning";
 
 function allFinite(state: GameState): boolean {
   const s = state.sheep;
@@ -290,13 +290,13 @@ describe("smoke / invariants", () => {
       const msPerStep = (performance.now() - start) / N;
       // eslint-disable-next-line no-console
       console.log(
-        `sheep=${count}  ${msPerStep.toFixed(3)} ms/step  -> ${(msPerStep * 240).toFixed(0)} ms sim / real second`,
+        `sheep=${count}  ${msPerStep.toFixed(3)} ms/step  -> ${(msPerStep * SIM_HZ).toFixed(0)} ms sim / real second`,
       );
-      return msPerStep * 240;
+      return msPerStep * SIM_HZ;
     }
 
     // DoD: 500 sheep hold a stable frame budget (hard requirement) — sim must fit in
-    // real time on a single thread at 240 Hz with headroom for rendering.
+    // real time on a single thread at the sim rate with headroom for rendering.
     expect(measure(500)).toBeLessThan(1000);
     // 1000 is an explicit STRETCH check: logged for observation, not a pass/fail gate
     // (per Node-run variance it can exceed the single-thread 240 Hz budget). Only a

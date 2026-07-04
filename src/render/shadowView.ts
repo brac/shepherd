@@ -10,9 +10,10 @@ import { ACT_REST } from "../state/gameState";
 import { createRng, nextRange } from "../sim/rng";
 import { lerp } from "./camera";
 import { optionalTexture } from "./assets";
-import { shadowDir } from "./visualsRuntime";
+import { shadowDir, visuals } from "./visualsRuntime";
 import { DOG_RADIUS, SHEEP_RADIUS } from "../../data/tuning";
 import {
+  OVERCAST_SHADOW,
   SHADOW_ALPHA,
   SHADOW_LENGTH,
   SHADOW_REST_ALPHA,
@@ -81,8 +82,11 @@ export class ShadowView {
   update(state: GameState, alpha: number): void {
     const s = state.sheep;
     const dir = shadowDir();
-    const ox = dir.x * SHADOW_LENGTH;
-    const oy = dir.y * SHADOW_LENGTH;
+    // Low sun (mood) lengthens shadows; overcast flattens them toward nothing.
+    const len = SHADOW_LENGTH * visuals.shadowLenMul;
+    const ox = dir.x * len;
+    const oy = dir.y * len;
+    const fade = 1 - visuals.overcast * OVERCAST_SHADOW;
     const n = s.count;
 
     for (let i = 0; i < n; i++) {
@@ -94,17 +98,18 @@ export class ShadowView {
         const sc = this.baseScale[i] * SHADOW_REST_SCALE;
         p.scaleX = sc;
         p.scaleY = sc;
-        p.alpha = SHADOW_REST_ALPHA;
+        p.alpha = SHADOW_REST_ALPHA * fade;
       } else {
         p.scaleX = this.baseScale[i];
         p.scaleY = this.baseScale[i];
-        p.alpha = SHADOW_ALPHA;
+        p.alpha = SHADOW_ALPHA * fade;
       }
     }
 
     const dp = this.particles[n];
     dp.x = lerp(state.dog.prevX, state.dog.x, alpha) + ox;
     dp.y = lerp(state.dog.prevY, state.dog.y, alpha) + oy;
+    dp.alpha = SHADOW_ALPHA * fade;
   }
 }
 

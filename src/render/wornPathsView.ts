@@ -6,7 +6,7 @@
 
 import { Container, Sprite, Texture } from "pixi.js";
 import type { GameState } from "../state/gameState";
-import { WORN_MAX_ALPHA, WORN_REFRESH, WORN_TINT } from "../../data/visuals";
+import { WORN_MAX_ALPHA, WORN_MIN, WORN_REFRESH, WORN_TINT } from "../../data/visuals";
 
 export class WornPathsView {
   readonly container = new Container();
@@ -24,6 +24,9 @@ export class WornPathsView {
     this.canvas.width = tr.cols;
     this.canvas.height = tr.rows;
     this.texture = Texture.from(this.canvas);
+    // LINEAR so the tiny cols×rows texture blends into soft blobs when stretched over the
+    // field — otherwise each cell is a hard square and the grid flickers as it refreshes.
+    this.texture.source.scaleMode = "linear";
     this.r = (WORN_TINT >> 16) & 0xff;
     this.g = (WORN_TINT >> 8) & 0xff;
     this.b = WORN_TINT & 0xff;
@@ -46,8 +49,11 @@ export class WornPathsView {
     const img = ctx.createImageData(tr.cols, tr.rows);
     const d = img.data;
     const val = tr.val;
+    const span = 1 - WORN_MIN; // val is 0..TRAMPLE_MAX(1)
     for (let i = 0; i < val.length; i++) {
-      const a = val[i] * WORN_MAX_ALPHA; // val is 0..TRAMPLE_MAX(1)
+      // Dead zone below WORN_MIN (a single pass is invisible), then ramp — wear is nonlinear.
+      const v = val[i];
+      const a = v <= WORN_MIN ? 0 : ((v - WORN_MIN) / span) * WORN_MAX_ALPHA;
       d[i * 4] = this.r;
       d[i * 4 + 1] = this.g;
       d[i * 4 + 2] = this.b;

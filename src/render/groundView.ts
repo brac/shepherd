@@ -18,6 +18,7 @@ import {
   VIGNETTE_ALPHA,
   WIND_SCROLL,
   WIND_STREAK_ALPHA,
+  WIND_TILE_SCALE,
 } from "../../data/visuals";
 
 export class GroundView {
@@ -57,9 +58,11 @@ export class GroundView {
     this.container.addChild(vig);
 
     // Wind streaks: a tiling soft-noise layer, additive, alpha driven by the gust in update().
+    // Scaled up so the 128px tile covers a big span → seams/repeats don't read as a grid.
     this.wind = new TilingSprite({ texture: bakeWindStreaks(), width: w, height: h });
     this.wind.x = b.minX;
     this.wind.y = b.minY;
+    this.wind.tileScale.set(WIND_TILE_SCALE);
     this.wind.blendMode = "add";
     this.wind.alpha = 0;
     this.container.addChild(this.wind);

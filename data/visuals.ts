@@ -48,12 +48,15 @@ export const GRASS_PATCH_LIGHT = 0x88a955;
 export const GRASS_PATCH_ALPHA = 0.5; // strength of the procedural patch overlay
 export const VIGNETTE_ALPHA = 0.22; // soft dark frame toward the field edge (both paths)
 export const WORN_TINT = 0x83714c; // flattened/discoloured grass where traffic has passed
-export const WORN_MAX_ALPHA = 0.55; // opacity of a fully-worn cell
+export const WORN_MAX_ALPHA = 0.5; // opacity of a fully-worn cell
+export const WORN_MIN = 0.18; // trample below this doesn't show at all (a single pass is invisible);
+// above it, alpha ramps to WORN_MAX_ALPHA — so wear is nonlinear: a crowd browns a spot, one sheep doesn't
 export const WORN_REFRESH = 0.25; // seconds between worn-path texture rebuilds (~4 Hz)
 // Wind on grass: a faint bright streak layer that scrolls with the wind and only shows during
 // a gust (alpha tracks ambient.windAlert), so 2A wind-startles visibly brush the field.
-export const WIND_STREAK_ALPHA = 0.5; // peak opacity of the wind layer at full windAlert
+export const WIND_STREAK_ALPHA = 0.2; // peak opacity of the wind layer at full windAlert (faint)
 export const WIND_SCROLL = 26; // px/s the wind streaks slide across the field
+export const WIND_TILE_SCALE = 4; // enlarge the tiling noise so repeats/seams aren't a visible grid
 
 // ---- Soft-material motion (Pillar 3, M3) — all applied per-sheep phase-offset ----
 // A moving sheep reads as a soft bounding MASS, not a rigid oval sliding: stretch along the
@@ -70,10 +73,27 @@ export const BREATH_PERIOD_MAX = 4.2;
 export const REST_BREATH_DEPTH = 2.2; // a lying sheep breathes deeper than a grazing one
 export const REST_BREATH_SLOW = 0.55; // ...and slower
 
-// ---- World mood / clouds (M5) ----
-export const CLOUD_COUNT = 3; // drifting soft shadow patches
-export const CLOUD_DARKEN = 0.18; // how much a cloud patch dims the ground beneath it
-export const CLOUD_DRIFT_SPEED = 6; // px/s the cloud field slides across the field
+// ---- World mood: time of day (M5) ----
+// A slow day cycle warms and dims the light and lengthens shadows toward dawn/dusk, so the
+// same field feels different each visit (the "reason to return" layer). Drives a color grade
+// on the whole world + the contact-shadow length. Sim reads none of this.
+export const DAY_LENGTH = 900; // seconds for a full dawn→dusk cycle (slow, ~15 min)
+export const DAY_PHASE_DEFAULT = 0.34; // starting time of day (0 dawn .. 0.5 noon .. 1 dusk)
+export const TOD_DIM = 0.12; // how much dawn/dusk dims the scene vs noon
+export const TOD_WARM = 0.55; // max warm-light mix at dawn/dusk
+export const WARM_TINT = 0xffd7a0; // low-sun light colour (grade multiplies toward this)
+export const SHADOW_LOWSUN_LEN = 1.7; // extra shadow-length multiplier at a low sun
+// ---- Weather: overcast amount 0..1 (M5) ----
+export const OVERCAST_DIM = 0.16; // overcast dims the scene
+export const OVERCAST_DESAT = 0.5; // ...and desaturates it
+export const OVERCAST_SHADOW = 0.75; // ...and flattens the contact shadows (softer light)
+export const OVERCAST_CLOUD = 1.6; // ...and thickens the cloud cover
+// ---- World mood: drifting cloud shadows (M5) — the standout beauty-per-effort item ----
+export const CLOUD_COUNT = 4; // drifting soft shadow patches
+export const CLOUD_DARKEN = 0.2; // base opacity of a cloud patch
+export const CLOUD_DRIFT_SPEED = 9; // px/s the cloud field slides across the field
+export const CLOUD_SCALE = 560; // cloud-patch radius (px) — large, soft
+export const CLOUD_TINT = 0x223018; // dark, slightly cool-green shade under a cloud
 
 // ---- Camera dynamic zoom (M6; graduates to data/tuning.ts when the sim camera pass reads it) ----
 export const ZOOM_MIN = 0.62; // flock spread wide → zoomed out

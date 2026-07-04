@@ -3,7 +3,12 @@
 // Units: distances in world pixels, speeds in px/s, times in seconds, rates per second.
 
 // ---- Timestep ----
-export const SIM_HZ = 240;
+// 120 Hz (was 240): at a 120 fps display this is ONE sim step per rendered frame instead of
+// two, roughly halving sim CPU per frame — the flock stays at 120 fps under load instead of
+// cascading down the vsync tiers. Still a fixed, deterministic, frame-rate-independent step;
+// all tuning below is per-second rates, so feel is preserved. (Deviates from DESIGN_BIBLE's
+// 240 Hz — documented in STATUS.md.)
+export const SIM_HZ = 120;
 export const DT = 1 / SIM_HZ; // fixed sim step, seconds
 export const MAX_FRAME_TIME = 0.25; // clamp accumulator to avoid spiral-of-death
 
@@ -234,7 +239,11 @@ export const W_FOLLOW = 0.9; // extra cohesion+alignment weight toward the leade
 // step, clamped to TRAMPLE_MAX, and every cell decays slowly (~100 s fade — a compressed
 // weeks-scale recovery, Mwendera 2010). PURELY VISUAL — no behaviour feedback (spec §2.6).
 export const TRAMPLE_CELL = 32; // coarse traffic-grid cell size (px)
-export const TRAMPLE_ADD = 0.6; // deposit rate under a sheep (per second)
-export const TRAMPLE_DOG_MUL = 4; // the dog packs a path harder than a sheep
+// Deposit is a RATE (per second in a cell), so a sheep just running across a cell (~0.4 s)
+// barely marks it, while dwelling/repeated traffic accumulates. Kept low so wear builds over
+// time, not instantly — a single pass stays below the WORN_MIN render threshold; it takes a
+// crowd (or a lingering flock) to actually brown the ground. See WornPathsView.
+export const TRAMPLE_ADD = 0.12; // deposit rate under a sheep (per second) — a single pass is faint
+export const TRAMPLE_DOG_MUL = 3; // the dog packs a path a bit harder than a sheep
 export const TRAMPLE_MAX = 1; // per-cell saturation ceiling
 export const TRAMPLE_DECAY = 0.01; // exponential fade rate per second (~100 s to 1/e)

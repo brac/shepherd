@@ -6,6 +6,7 @@ import { level2 } from "../data/levels/level2";
 import { Renderer } from "./render/renderer";
 import { DevPanel } from "./render/devPanel";
 import { attachInput } from "./input/input";
+import { visuals } from "./render/visualsRuntime";
 import { startLoop } from "./loop";
 
 async function boot(): Promise<void> {
@@ -30,7 +31,7 @@ async function boot(): Promise<void> {
   startLoop(state, renderer.render);
 
   // Expose for quick console poking during tuning.
-  (window as unknown as { shepherd: unknown }).shepherd = { state, renderer, devPanel };
+  (window as unknown as { shepherd: unknown }).shepherd = { state, renderer, devPanel, visuals };
 }
 
 boot().catch((err) => {

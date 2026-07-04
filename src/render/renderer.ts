@@ -15,6 +15,7 @@ import { CloudShadowView } from "./cloudShadowView";
 import { DebugView } from "./debugView";
 import { HudView } from "./hudView";
 import { loadOptionalTextures } from "./assets";
+import { moodFilter, updateMood } from "./mood";
 import { lerp, ZOOM } from "./camera";
 
 export class Renderer {
@@ -23,6 +24,7 @@ export class Renderer {
   private groundView!: GroundView;
   private wornPathsView!: WornPathsView;
   private shadowView!: ShadowView;
+  private cloudShadowView!: CloudShadowView;
   private sheepView!: SheepView;
   private dogView!: DogView;
   private debugView!: DebugView;
@@ -37,7 +39,10 @@ export class Renderer {
       resizeTo: mount,
       background: 0x4f6b2c,
       antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      // Cap render resolution: on a hi-DPI display (retina/4K) rendering at full devicePixelRatio
+      // is 2–4× the fill for the same view. 1.5 keeps it crisp while reclaiming that headroom;
+      // harmless at DPR 1.
+      resolution: Math.min(window.devicePixelRatio || 1, 1.5),
       autoDensity: true,
     });
     mount.appendChild(this.app.canvas);
@@ -48,15 +53,23 @@ export class Renderer {
     this.world = new Container();
     this.app.stage.addChild(this.world);
 
+    // Background layers go in a separate container that the mood filter grades. Keeping the
+    // 1000+ sheep/shadow PARTICLES OUT of the filtered subtree preserves their fast direct
+    // render path (filtering the whole world forces them through an offscreen texture every
+    // frame — a big cost) and keeps the fleece crisp; only the field surface is graded.
+    const bg = new Container();
+    bg.filters = [moodFilter]; // time-of-day / weather color grade over the field
+    this.world.addChild(bg);
+
     // World layers, bottom → top (z-order is the render contract; see PHASE_2B_PLAN.md).
     this.groundView = new GroundView(state.level); // 1. grass (photo or procedural) + vignette + wind
-    this.world.addChild(this.groundView.container);
+    bg.addChild(this.groundView.container);
 
     this.wornPathsView = new WornPathsView(state); // 2. trodden-ground heatmap from the trample grid
-    this.world.addChild(this.wornPathsView.container);
+    bg.addChild(this.wornPathsView.container);
 
     const fieldView = new FieldView(state.level); // 3. fence, gate, obstacles
-    this.world.addChild(fieldView.container);
+    bg.addChild(fieldView.container);
 
     this.shadowView = new ShadowView(state); // 4. soft contact shadows
     this.world.addChild(this.shadowView.container);
@@ -67,8 +80,8 @@ export class Renderer {
     this.dogView = new DogView(); // 6. dog
     this.world.addChild(this.dogView.container);
 
-    const cloudShadowView = new CloudShadowView(); // 7. drifting cloud shadows (M5 stub)
-    this.world.addChild(cloudShadowView.container);
+    this.cloudShadowView = new CloudShadowView(state.level); // 7. drifting cloud shadows
+    this.world.addChild(this.cloudShadowView.container);
 
     this.debugView = new DebugView(); // 8. debug overlay (D)
     this.world.addChild(this.debugView.container);
@@ -96,11 +109,13 @@ export class Renderer {
     this.world.x = w / 2 - camX * ZOOM;
     this.world.y = h / 2 - camY * ZOOM;
 
+    updateMood(state); // grade + shadow length before the views read them
     this.groundView.update(state);
     this.wornPathsView.update(state);
     this.shadowView.update(state, alpha);
     this.sheepView.update(state, alpha);
     this.dogView.update(state, alpha);
+    this.cloudShadowView.update(state);
     this.debugView.update(state);
     this.hudView.update(state, w, h);
   };

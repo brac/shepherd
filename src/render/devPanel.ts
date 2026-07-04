@@ -4,7 +4,7 @@
 
 import type { GameState } from "../state/gameState";
 import { DOG_TROT_SPEED } from "../../data/tuning";
-import { SUN_AZIMUTH } from "../../data/visuals";
+import { DAY_PHASE_DEFAULT, SUN_AZIMUTH } from "../../data/visuals";
 import { visuals } from "./visualsRuntime";
 
 export class DevPanel {
@@ -47,7 +47,7 @@ export class DevPanel {
       (v) => (this.state.dev.dogTrotSpeed = v),
       DOG_TROT_SPEED,
     );
-    // Phase 2B render knob (view-only; consumed by shadows/fleece/grass from M1 on).
+    // Phase 2B render knobs (view-only; consumed by shadows/grade/clouds).
     this.addSlider(
       "Sun azimuth",
       -Math.PI,
@@ -56,6 +56,24 @@ export class DevPanel {
       () => visuals.sunAzimuth,
       (v) => (visuals.sunAzimuth = v),
       SUN_AZIMUTH,
+    );
+    this.addSlider(
+      "Time of day",
+      0,
+      1,
+      0.01,
+      () => visuals.dayPhaseOffset,
+      (v) => (visuals.dayPhaseOffset = v),
+      DAY_PHASE_DEFAULT,
+    );
+    this.addSlider(
+      "Overcast",
+      0,
+      1,
+      0.02,
+      () => visuals.overcast,
+      (v) => (visuals.overcast = v),
+      0,
     );
   }
 

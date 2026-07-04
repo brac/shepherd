@@ -4,12 +4,13 @@
 // or headless runs. The mutable counterpart to the immutable visuals constants, mirroring
 // the tuning(const) / GameState.dev(runtime) split on the sim side.
 
-import { SUN_AZIMUTH, SUN_ELEVATION, CLOUD_DARKEN } from "../../data/visuals";
+import { SUN_AZIMUTH, DAY_PHASE_DEFAULT } from "../../data/visuals";
 
 export const visuals = {
-  sunAzimuth: SUN_AZIMUTH,
-  sunElevation: SUN_ELEVATION,
-  cloudDarken: CLOUD_DARKEN,
+  sunAzimuth: SUN_AZIMUTH, // shadow direction (dev knob; also the baked-shading reference)
+  dayPhaseOffset: DAY_PHASE_DEFAULT, // time-of-day phase (dev knob); actual ToD adds the day drift
+  overcast: 0, // weather: 0 clear .. 1 fully overcast (dev knob)
+  shadowLenMul: 1, // contact-shadow length multiplier (set by the mood pass from the sun height)
 };
 
 /** Unit vector pointing the way shadows fall (away from the sun). */
