@@ -10,10 +10,12 @@
 // down). Elevation biases shadow length: low sun = long shadows, overhead = short.
 export const SUN_AZIMUTH = -2.36; // ≈ -135°: light from the upper-left, shadows fall lower-right
 export const SUN_ELEVATION = 0.9; // 0 = grazing/horizon (long) .. ~1.4 = overhead (short)
-export const SHADOW_LENGTH = 9; // px the shadow centre is pushed away from the sun at default elevation
+export const SHADOW_LENGTH = 5; // px the shadow centre is pushed away from the sun (subtle at top-down)
 export const SHADOW_ALPHA = 0.26; // base opacity of a contact shadow
 export const SHADOW_REST_ALPHA = 0.34; // a lying sheep sits lower → tighter, darker contact
-export const SHADOW_SCALE = 1.15; // shadow ellipse size relative to the sheep body
+export const SHADOW_SCALE = 1.6; // shadow blob radius relative to SHEEP_RADIUS (a soft pool under the body)
+export const SHADOW_REST_SCALE = 0.8; // a resting sheep's shadow pulls in tighter (closer contact)
+export const SHADOW_TINT = 0x1b2913; // dark warm-green (reads more natural on grass than pure black)
 
 // ---- Fleece palette (Pillar 2 / anti-uniformity, M2) ----
 // Off-white ramp skewed toward cream, plus a rare-sheep table. Real flocks are not uniform
