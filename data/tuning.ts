@@ -11,6 +11,12 @@
 export const SIM_HZ = 120;
 export const DT = 1 / SIM_HZ; // fixed sim step, seconds
 export const MAX_FRAME_TIME = 0.25; // clamp accumulator to avoid spiral-of-death
+// Frame limiter: render at most this often. The sim is a ~3.8 ms/step CPU floor (dense
+// neighbour scans on 500 packed sheep), so at 120 fps it eats the whole budget and a full-
+// panic flock tips into a 120→30 vsync oscillation. Capping to a steady 60 fps gives each
+// processed frame a 16.6 ms budget (2 sim substeps + render ≈ 10 ms) — smooth and stable.
+// The real fix (GPU compute → thousands of sheep at 120 fps) is logged in docs/BACKLOG.md.
+export const RENDER_FPS_CAP = 60;
 
 // ---- Sheep body / motion ----
 export const SHEEP_RADIUS = 5;

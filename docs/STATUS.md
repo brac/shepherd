@@ -52,7 +52,7 @@ All in `data/tuning.ts`. Current values reflect a first feel pass:
 
 ## Performance
 
-500 sheep ~1.5–3 ms/step. **Sim runs at 120 Hz** (not 240) so a 120 fps display does ONE sim step per rendered frame instead of two — halving sim CPU per frame and keeping the flock at 120 fps under load instead of cascading down the vsync tiers (120→60→30). The sim is otherwise real-time-comfortable on a single thread with room for rendering. 1000 sheep (~5–13 ms/step depending on machine noise) exceeds single-thread realtime — an explicit **stretch** goal, logged not gated in the perf test. The two hot per-sheep sweeps (panic propagation, flocking) are the dominant cost.
+500 sheep ~3–4 ms/step — a roughly CONSTANT floor (idle≈panic), because the flock packs tight (~40 neighbours each) so every step does dense neighbour scans. **Sim runs at 120 Hz** (not 240) so a 120 fps display does one sim step per rendered frame instead of two. Even so, that ~3.8 ms floor leaves little 120 fps headroom and a full-panic flock tipped the vsync tiers (120→60→30), so the **render loop is capped to a stable 60 fps** (`RENDER_FPS_CAP` in `data/tuning.ts`; 16.6 ms/frame = 2 sim substeps + render ≈ 10 ms, smooth and steady). The real fix — **GPU compute for thousands of sheep at 120 fps**, using `~/Work/Petriarch`'s WebGPU playbook — is a logged epic in **`docs/BACKLOG.md`** (not now). 1000 sheep (~5–13 ms/step depending on machine noise) exceeds single-thread realtime — an explicit **stretch** goal, logged not gated in the perf test. The two hot per-sheep sweeps (panic propagation, flocking) are the dominant cost.
 
 ## What's next (prioritized)
 

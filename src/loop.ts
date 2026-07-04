@@ -6,7 +6,11 @@
 
 import type { GameState } from "./state/gameState";
 import { stepSim } from "./sim/step";
-import { DT, MAX_FRAME_TIME } from "../data/tuning";
+import { DT, MAX_FRAME_TIME, RENDER_FPS_CAP } from "../data/tuning";
+
+// Frame limiter interval (seconds), with a buffer so a native-60 Hz display still renders
+// every vsync and high-refresh displays settle to a stable cap (120 Hz → 60 fps).
+const MIN_FRAME_INTERVAL = 1 / RENDER_FPS_CAP - 0.004;
 
 export interface PerfStats {
   simMs: number; // sim time spent this frame (all substeps)
@@ -25,7 +29,15 @@ export function startLoop(state: GameState, render: (state: GameState, alpha: nu
   let fpsCount = 0;
 
   function frame(nowMs: number): void {
-    let frameTime = (nowMs - last) / 1000;
+    // Frame limiter: skip this vsync if too little real time has passed since the last
+    // rendered frame (keeps a steady cap without desyncing the sim — the full elapsed time
+    // still feeds the accumulator when we DO process, so sim-time tracks wall-clock).
+    const elapsed = (nowMs - last) / 1000;
+    if (elapsed < MIN_FRAME_INTERVAL) {
+      requestAnimationFrame(frame);
+      return;
+    }
+    let frameTime = elapsed;
     last = nowMs;
     if (frameTime > MAX_FRAME_TIME) frameTime = MAX_FRAME_TIME;
     acc += frameTime;
