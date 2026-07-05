@@ -72,3 +72,7 @@ The plan for shepherd:
 
 ## Phase 2B remaining
 - **M6 — dynamic zoom + acceptance pass** (the final 2B milestone; see `PHASE_2B_PLAN.md`).
+
+
+## Performance is not great
+Even capping the fps at 60 is still seeing drops to 15 at full flock panic. Is it the background image because it's so big? Could we go with the procedural one? Is there another level we could pull?

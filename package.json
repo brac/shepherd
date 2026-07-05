@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "A cozy top-down sheepdog herding sim.",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
