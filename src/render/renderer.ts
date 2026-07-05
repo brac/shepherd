@@ -8,6 +8,7 @@ import type { GameState } from "../state/gameState";
 import { GroundView } from "./groundView";
 import { WornPathsView } from "./wornPathsView";
 import { FieldView } from "./fieldView";
+import { LegendView } from "./legendView";
 import { ShadowView } from "./shadowView";
 import { SheepView } from "./sheepView";
 import { DogView } from "./dogView";
@@ -74,6 +75,9 @@ export class Renderer {
 
     const fieldView = new FieldView(state.level); // 3. fence, gate, obstacles
     bg.addChild(fieldView.container);
+
+    const legendView = new LegendView(state.level); // 3b. world-locked key legend under the field
+    bg.addChild(legendView.container);
 
     this.shadowView = new ShadowView(state); // 4. soft contact shadows
     this.world.addChild(this.shadowView.container);
