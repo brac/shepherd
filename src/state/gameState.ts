@@ -29,7 +29,8 @@ export const ACT_FOLLOW = 3;
 export const DOG_TROT = 0;
 export const DOG_PRONE = 1;
 export const DOG_STALK = 2;
-export type DogState = 0 | 1 | 2;
+export const DOG_SPRINT = 3;
+export type DogState = 0 | 1 | 2 | 3;
 
 /** Structure-of-Arrays sheep pool. Index i is one sheep across every array. */
 export interface SheepPool {
@@ -82,8 +83,8 @@ export interface DogStateObj {
 export interface InputState {
   mouseWorldX: number;
   mouseWorldY: number;
-  leftDown: boolean; // left button held -> dog is planted (stalk or stop)
-  dragging: boolean; // mouse moving while held -> stalk; still -> the dog stops
+  sprint: boolean; // left button held -> dog sprints toward the cursor (hard drive)
+  prone: boolean; // ctrl held -> dog plants prone (the "eye", hard stop)
   barkQueued: boolean; // consumed once by the sim
 }
 
@@ -274,8 +275,8 @@ export function createGameState(def: LevelDef, seedOverride?: number): GameState
     input: {
       mouseWorldX: level.dogStartX,
       mouseWorldY: level.dogStartY,
-      leftDown: false,
-      dragging: false,
+      sprint: false,
+      prone: false,
       barkQueued: false,
     },
     camera: {

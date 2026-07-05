@@ -82,12 +82,12 @@ The dog exerts fear on sheep via a **state-dependent fear radius**. Ordering, mi
 
 ### Dog states / input
 
-The implemented control model treats **holding left as planting the dog**; only mouse *motion while held* distinguishes stalk from a stop. (This supersedes the earlier "click = snap prone" phrasing.)
+The implemented control model maps **left to sprint** and **ctrl to prone**; trot vs. stalk falls out of how close the cursor is to the dog. (This supersedes both the earlier "click = snap prone" phrasing and the later "hold-left = plant" model.)
 
-- **Mouse move, no button** → trot toward mouse (eased). Default state, largest fear radius.
-- **Hold left + keep the mouse moving** → stalk. Slow deliberate creep toward the cursor; intermediate fear radius; sheep give ground steadily.
-- **Hold left + hold the mouse still** → prone / plant. The dog hard-stops and snaps its facing toward the nearest sheep (the "eye"); smallest fear radius. Acts as a **soft wall**: sheep are aware of it and won't cross it, but a prone dog doesn't panic them — pin a group against it while you collect stragglers. (A short idle timer flips a stalk back to a stop when the mouse goes still; tunable via `STALK_IDLE_MS`.)
-- **Release left** → back to trot-follow.
+- **Mouse move, no button** → trot toward the cursor (eased). Default state, large fear radius. The dog **creeps (stalk)** instead of trotting once the cursor comes within `STALK_RADIUS` of it — so a *still* cursor lets the dog settle in slowly (intermediate fear radius; sheep give ground steadily), while *moving* the cursor makes it trot to catch up.
+- **Hold left** → sprint. A hard drive toward the cursor: fastest speed (`DOG_SPRINT_SPEED`), snappiest acceleration, **largest fear radius** — the main tool for pushing a flock.
+- **Hold ctrl** → prone / plant (highest priority). The dog hard-stops and snaps its facing toward the nearest sheep (the "eye"); smallest fear radius. Acts as a **soft wall**: sheep are aware of it and won't cross it, but a prone dog doesn't panic them — pin a group against it while you collect stragglers.
+- **Release** → back to trot-follow.
 - **Right-click → bark.** Radial panic pulse: momentary fear-radius spike that injects a burst of panic in a radius. Use to unstick jammed sheep or reset a corner. Cooldown.
 - **Shift-click → big bark.** A **cone** shaped burst that shoves a group in the facing direction. *Deferred — not yet implemented.*
 - Moving and barking are **independent** — the dog can move and bark together or separately.

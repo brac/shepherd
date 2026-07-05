@@ -12,6 +12,7 @@ import {
   ACT_GRAZE,
   ACT_REST,
   DOG_PRONE,
+  DOG_SPRINT,
   DOG_STALK,
   FLAG_FLEEING,
   FLAG_PENNED,
@@ -27,6 +28,7 @@ import {
   AWARENESS_RADIUS,
   BARK_RADIUS,
   FEAR_RADIUS_PRONE,
+  FEAR_RADIUS_SPRINT,
   FEAR_RADIUS_STALK,
   FEAR_RADIUS_TROT,
   FLEE_COHESION_DAMP,
@@ -198,6 +200,7 @@ export function updateFlocking(state: GameState, dt: number): void {
   const proneNow = dog.state === DOG_PRONE;
   let fearRadius: number;
   if (proneNow) fearRadius = FEAR_RADIUS_PRONE;
+  else if (dog.state === DOG_SPRINT) fearRadius = FEAR_RADIUS_SPRINT;
   else if (dog.state === DOG_STALK) fearRadius = FEAR_RADIUS_STALK;
   else fearRadius = FEAR_RADIUS_TROT;
   if (dog.barkTimer > 0) fearRadius = Math.max(fearRadius, BARK_RADIUS);

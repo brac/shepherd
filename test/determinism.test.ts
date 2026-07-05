@@ -5,16 +5,16 @@ import { stepSim } from "../src/sim/step";
 import { DT } from "../data/tuning";
 
 // A scripted dog-intent sequence (no real pointer input) that exercises every dog
-// state (trot / stalk / prone) and barking, so determinism is tested across the
-// whole sim, not just the quiet path.
+// state (trot / stalk / sprint / prone) and barking, so determinism is tested across the
+// whole sim, not just the quiet path. Prone (ctrl) and sprint (left) are held in alternating
+// windows; trot/stalk fall out of the cursor's distance to the dog when neither is held.
 function drive(state: GameState, steps: number): void {
   for (let t = 0; t < steps; t++) {
     const inp = state.input;
     inp.mouseWorldX = 1000 + 600 * Math.sin(t * 0.003);
     inp.mouseWorldY = 600 + 300 * Math.sin(t * 0.0047);
-    inp.leftDown = t % 1200 < 400;
-    // Hold with no drag for the first stretch (prone/stop), then drag (stalk).
-    inp.dragging = inp.leftDown && t % 1200 > 150;
+    inp.prone = t % 1200 < 150; // plant for a stretch each cycle
+    inp.sprint = !inp.prone && t % 600 < 300; // then drive
     if (t % 900 === 0) inp.barkQueued = true;
     stepSim(state, DT);
   }

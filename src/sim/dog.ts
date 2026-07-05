@@ -5,6 +5,7 @@
 
 import {
   DOG_PRONE,
+  DOG_SPRINT,
   DOG_STALK,
   DOG_TROT,
   type GameState,
@@ -16,7 +17,10 @@ import {
   DOG_ACCEL_EASE,
   DOG_ARRIVE_RADIUS,
   DOG_RADIUS,
+  DOG_SPRINT_ACCEL_EASE,
+  DOG_SPRINT_SPEED,
   DOG_STALK_SPEED,
+  STALK_RADIUS,
 } from "../../data/tuning";
 
 /** Snap the dog's facing toward the nearest sheep (the "eye"). Called on prone. */
@@ -63,18 +67,19 @@ export function updateDog(state: GameState, dt: number): void {
   }
 
   // ---- State resolution ----
-  // Holding left plants the dog: moving the mouse while held stalks, holding still
-  // stops it (prone hold). Releasing returns to trot-follow.
+  // Ctrl plants the dog prone (the "eye", highest priority). Else holding left sprints toward
+  // the cursor. Else the dog follows the cursor: it trots when the cursor is far, but creeps
+  // (stalk) once the cursor comes within STALK_RADIUS — so a still cursor lets it settle in.
   const wasProne = dog.state === DOG_PRONE;
-  if (input.leftDown) {
-    if (input.dragging) {
-      dog.state = DOG_STALK;
-    } else {
-      dog.state = DOG_PRONE;
-      if (!wasProne) snapFacingToNearestSheep(state);
-    }
+  if (input.prone) {
+    dog.state = DOG_PRONE;
+    if (!wasProne) snapFacingToNearestSheep(state);
+  } else if (input.sprint) {
+    dog.state = DOG_SPRINT;
   } else {
-    dog.state = DOG_TROT;
+    const mdx = input.mouseWorldX - dog.x;
+    const mdy = input.mouseWorldY - dog.y;
+    dog.state = mdx * mdx + mdy * mdy <= STALK_RADIUS * STALK_RADIUS ? DOG_STALK : DOG_TROT;
   }
 
   // Prone = hard stop. The dog holds position (soft wall) and does not integrate.
@@ -84,10 +89,13 @@ export function updateDog(state: GameState, dt: number): void {
     return;
   }
 
-  // ---- Movement target (trot / stalk) ----
+  // ---- Movement target (trot / stalk / sprint) ----
   const targetX = input.mouseWorldX;
   const targetY = input.mouseWorldY;
-  const maxSpeed = dog.state === DOG_STALK ? DOG_STALK_SPEED : state.dev.dogTrotSpeed;
+  let maxSpeed: number;
+  if (dog.state === DOG_SPRINT) maxSpeed = DOG_SPRINT_SPEED;
+  else if (dog.state === DOG_STALK) maxSpeed = DOG_STALK_SPEED;
+  else maxSpeed = state.dev.dogTrotSpeed;
 
   // Desired velocity with arrive (ease-out near the target).
   let desiredVX = 0;
@@ -102,8 +110,10 @@ export function updateDog(state: GameState, dt: number): void {
     desiredVY = (tdy / td) * speed;
   }
 
-  // Ease current velocity toward desired (ease-in).
-  const k = Math.min(1, DOG_ACCEL_EASE * dt);
+  // Ease current velocity toward desired (ease-in). Sprint accelerates harder so the burst
+  // reads as instant.
+  const ease = dog.state === DOG_SPRINT ? DOG_SPRINT_ACCEL_EASE : DOG_ACCEL_EASE;
+  const k = Math.min(1, ease * dt);
   dog.velX += (desiredVX - dog.velX) * k;
   dog.velY += (desiredVY - dog.velY) * k;
 

@@ -78,11 +78,14 @@ export const GRAZE_TURN = 1.2; // radians of heading jitter per decision
 // ---- Dog motion ----
 export const DOG_RADIUS = 8;
 export const DOG_TROT_SPEED = 170;
+export const DOG_SPRINT_SPEED = 300; // left-hold sprint: a hard drive that clearly outpaces a fleeing sheep (152)
 export const DOG_STALK_SPEED = 45;
 export const DOG_ACCEL_EASE = 4; // velocity ease-toward-target rate (1/s)
+export const DOG_SPRINT_ACCEL_EASE = 9; // sprint accelerates harder so a left-press reads as an instant burst
 export const DOG_ARRIVE_RADIUS = 12; // stop easing when within this of the target
 
 // ---- Dog fear radii (state-dependent) ----
+export const FEAR_RADIUS_SPRINT = 200; // a sprinting dog is the scariest — biggest push
 export const FEAR_RADIUS_TROT = 160;
 export const FEAR_RADIUS_STALK = 100;
 export const FEAR_RADIUS_PRONE = 50;
@@ -116,10 +119,11 @@ export const FUNNEL_INSET = 26; // how far inside the gate the attractor point s
 export const PEN_BACK_STRENGTH = 0.3; // gentle push of penned sheep toward the far interior
 
 // ---- Input ----
-// Hold left = plant the dog. If the mouse keeps moving while held -> stalk (creep);
-// if it goes still -> the dog stops (prone hold). Release -> trot-follow.
-export const DRAG_THRESHOLD_PX = 5; // pointer travel to count as "moving while held"
-export const STALK_IDLE_MS = 130; // mouse still this long while held -> dog stops (prone)
+// Hold LEFT = sprint (hard drive toward the cursor). Hold CTRL = prone (plant, the "eye").
+// No button: trot to follow the cursor, but creep (stalk) once the cursor is within
+// STALK_RADIUS of the dog — so holding the cursor still lets the dog settle in slowly, while
+// moving it makes the dog trot to catch up. Right click = bark.
+export const STALK_RADIUS = 60; // cursor within this of the dog -> stalk-creep instead of trot
 
 // ---- Camera ----
 export const CAMERA_ZOOM = 0.9; // fixed zoom in Phase 1

@@ -18,6 +18,7 @@ import {
   BARK_RADIUS,
   BIRD_STARTLE_RADIUS,
   FEAR_RADIUS_PRONE,
+  FEAR_RADIUS_SPRINT,
   FEAR_RADIUS_STALK,
   FEAR_RADIUS_TROT,
   FLIGHT_HYSTERESIS,
@@ -30,7 +31,7 @@ import {
   PANIC_PROPAGATION_RATE,
   WAVE_SPEED,
 } from "../../data/tuning";
-import { DOG_STALK } from "../state/gameState";
+import { DOG_SPRINT, DOG_STALK } from "../state/gameState";
 
 export function updatePanic(state: GameState, dt: number): void {
   const s = state.sheep;
@@ -48,6 +49,7 @@ export function updatePanic(state: GameState, dt: number): void {
   // Dog state -> fear radius (bark transiently balloons it).
   let fearRadius: number;
   if (dog.state === DOG_PRONE) fearRadius = FEAR_RADIUS_PRONE;
+  else if (dog.state === DOG_SPRINT) fearRadius = FEAR_RADIUS_SPRINT;
   else if (dog.state === DOG_STALK) fearRadius = FEAR_RADIUS_STALK;
   else fearRadius = FEAR_RADIUS_TROT;
   if (dog.barkTimer > 0) fearRadius = Math.max(fearRadius, BARK_RADIUS);
