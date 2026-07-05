@@ -41,7 +41,11 @@ export class HudView {
 
   update(state: GameState, width: number, height: number): void {
     this.counter.text = `Penned: ${state.pennedCount} / ${state.sheep.count}`;
-    this.perf.text = `sim ${perfStats.simMs.toFixed(2)}ms  x${perfStats.steps}  ${perfStats.fps.toFixed(0)} fps`;
+    // sim = CPU sim substeps; render = CPU view-update wall time. If fps is below the cap while
+    // BOTH are small, the frame is GPU-bound (fill/overdraw/filter), not CPU-bound.
+    this.perf.text =
+      `sim ${perfStats.simMs.toFixed(2)}ms  x${perfStats.steps}` +
+      `  render ${perfStats.renderMs.toFixed(2)}ms  ${perfStats.fps.toFixed(0)} fps`;
 
     if (state.won) {
       this.banner.visible = true;

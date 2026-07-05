@@ -21,6 +21,7 @@ import { lerp, ZOOM } from "./camera";
 export class Renderer {
   readonly app: Application;
   private world!: Container;
+  private bg!: Container; // graded background subtree; filter attached/detached per frame
   private groundView!: GroundView;
   private wornPathsView!: WornPathsView;
   private shadowView!: ShadowView;
@@ -57,8 +58,11 @@ export class Renderer {
     // 1000+ sheep/shadow PARTICLES OUT of the filtered subtree preserves their fast direct
     // render path (filtering the whole world forces them through an offscreen texture every
     // frame — a big cost) and keeps the fleece crisp; only the field surface is graded.
+    // Filter is attached per-frame in render() (only when the grade is non-negligible) so a
+    // neutral scene keeps the fast direct-draw path — a ColorMatrixFilter forces a full-viewport
+    // offscreen pass whenever it's attached.
     const bg = new Container();
-    bg.filters = [moodFilter]; // time-of-day / weather color grade over the field
+    this.bg = bg;
     this.world.addChild(bg);
 
     // World layers, bottom → top (z-order is the render contract; see PHASE_2B_PLAN.md).
@@ -109,7 +113,13 @@ export class Renderer {
     this.world.x = w / 2 - camX * ZOOM;
     this.world.y = h / 2 - camY * ZOOM;
 
-    updateMood(state); // grade + shadow length before the views read them
+    // Grade + shadow length before the views read them. Attach the offscreen mood filter only
+    // when the grade is worth it (see updateMood); a neutral scene renders direct.
+    const graded = updateMood(state);
+    const filters = this.bg.filters;
+    const attached = Array.isArray(filters) ? filters.length > 0 : !!filters;
+    if (graded !== attached) this.bg.filters = graded ? [moodFilter] : [];
+
     this.groundView.update(state);
     this.wornPathsView.update(state);
     this.shadowView.update(state, alpha);

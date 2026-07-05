@@ -11,6 +11,7 @@ import { ACT_ALERT, ACT_REST, FLAG_PENNED } from "../state/gameState";
 import { createRng, nextFloat, nextRange, type Rng } from "../sim/rng";
 import { lerp } from "./camera";
 import { optionalTexture } from "./assets";
+import { visuals } from "./visualsRuntime";
 import { SHEEP_RADIUS, SHEEP_FLEE_SPEED } from "../../data/tuning";
 import {
   BLACK_SHEEP_CHANCE,
@@ -98,6 +99,7 @@ export class SheepView {
   update(state: GameState, alpha: number): void {
     const s = state.sheep;
     const t = state.simTime; // drives the breathing/bob clocks (advances at the sim rate)
+    const animate = visuals.animateSheep; // perf A/B: false freezes the soft-material motion
     for (let i = 0; i < s.count; i++) {
       const p = this.particles[i];
       p.x = lerp(s.prevX[i], s.posX[i], alpha);
@@ -124,7 +126,12 @@ export class SheepView {
 
       // ---- Soft-material motion (Pillar 3) ----
       // scaleX = along heading (fleece is baked long on x, and rotation = heading), scaleY = across.
-      if (resting) {
+      if (!animate) {
+        // A/B baseline: static body, no squash/stretch/breath/wobble. Isolates the motion's cost.
+        p.scaleX = base;
+        p.scaleY = resting ? base * REST_SCALE_Y : base;
+        p.rotation = s.heading[i];
+      } else if (resting) {
         // Deep, slow breathing; flattened; no bounce/wobble — a settled, planted mass.
         const b = 1 + BREATH_AMP * REST_BREATH_DEPTH * Math.sin(ph + t * rate * REST_BREATH_SLOW);
         p.scaleX = base * b;

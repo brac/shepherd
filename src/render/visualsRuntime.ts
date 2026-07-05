@@ -11,6 +11,9 @@ export const visuals = {
   dayPhaseOffset: DAY_PHASE_DEFAULT, // time-of-day phase (dev knob); actual ToD adds the day drift
   overcast: 0, // weather: 0 clear .. 1 fully overcast (dev knob)
   shadowLenMul: 1, // contact-shadow length multiplier (set by the mood pass from the sun height)
+  // ---- Perf A/B toggles (keyboard, see main.ts) — isolate a suspect to measure its real cost ----
+  animateSheep: true, // false → freeze per-sheep squash/stretch/breath/wobble to static scale+heading
+  moodGrade: true, // false → detach the full-screen ColorMatrixFilter (restores the direct draw path)
 };
 
 /** Unit vector pointing the way shadows fall (away from the sun). */

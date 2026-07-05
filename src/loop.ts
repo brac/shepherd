@@ -14,11 +14,12 @@ const MIN_FRAME_INTERVAL = 1 / RENDER_FPS_CAP - 0.004;
 
 export interface PerfStats {
   simMs: number; // sim time spent this frame (all substeps)
+  renderMs: number; // CPU wall time of the render() call (view updates; NOT async GPU work)
   fps: number;
   steps: number; // substeps run this frame
 }
 
-export const perfStats: PerfStats = { simMs: 0, fps: 0, steps: 0 };
+export const perfStats: PerfStats = { simMs: 0, renderMs: 0, fps: 0, steps: 0 };
 
 const MAX_STEPS_PER_FRAME = 8; // spiral-of-death guard
 
@@ -54,10 +55,13 @@ export function startLoop(state: GameState, render: (state: GameState, alpha: nu
     const simMs = performance.now() - simStart;
 
     const alpha = acc / DT;
+    const renderStart = performance.now();
     render(state, alpha);
+    const renderMs = performance.now() - renderStart;
 
     // Perf stats (smoothed FPS).
     perfStats.simMs = simMs;
+    perfStats.renderMs = renderMs;
     perfStats.steps = steps;
     fpsAccum += frameTime;
     fpsCount++;

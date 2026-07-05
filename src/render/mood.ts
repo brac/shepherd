@@ -19,7 +19,14 @@ import {
 /** The scene color grade. Applied to the world container by the renderer; matrix set here. */
 export const moodFilter = new ColorMatrixFilter();
 
-export function updateMood(state: GameState): void {
+/**
+ * Update the grade for this frame. Returns whether the filter should stay ATTACHED: the
+ * renderer detaches it (restoring the fast direct-draw path, no offscreen pass) when the
+ * grade is a near-no-op or the `moodGrade` A/B toggle is off. A ColorMatrixFilter always
+ * forces a full-viewport offscreen render while attached, so skipping a negligible grade is
+ * a free GPU win — near noon in clear weather the background renders direct.
+ */
+export function updateMood(state: GameState): boolean {
   // Time of day: knob phase + a slow drift, wrapped to 0..1 (0 dawn, 0.5 noon, 1 dusk).
   let tod = visuals.dayPhaseOffset + state.simTime / DAY_LENGTH;
   tod -= Math.floor(tod);
@@ -27,7 +34,7 @@ export function updateMood(state: GameState): void {
   const lowSun = 1 - elev;
   const oc = visuals.overcast;
 
-  // Low sun → long shadows (ShadowView reads this).
+  // Low sun → long shadows (ShadowView reads this; unaffected by the grade toggle).
   visuals.shadowLenMul = 1 + lowSun * SHADOW_LOWSUN_LEN;
 
   // Color grade: dimmer at dawn/dusk + overcast; warm low-sun light (overcast greys it out);
@@ -36,10 +43,15 @@ export function updateMood(state: GameState): void {
   const warm = lowSun * TOD_WARM * (1 - oc);
   const warmCol = mixHex(0xffffff, WARM_TINT, warm);
 
+  // Negligible grade → no visible change, so don't pay for the offscreen pass.
+  const active = visuals.moodGrade && (Math.abs(1 - bright) > 0.01 || oc > 0.01 || warm > 0.01);
+  if (!active) return false;
+
   moodFilter.reset();
   moodFilter.brightness(bright, true);
   if (oc > 0) moodFilter.saturate(-oc * OVERCAST_DESAT, true);
   if (warm > 0.001) moodFilter.tint(warmCol, true);
+  return true;
 }
 
 function mixHex(a: number, b: number, t: number): number {
